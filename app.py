@@ -235,6 +235,26 @@ def sitemap():
     xml = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' + "\n".join(urls) + "\n</urlset>"
     return Response(xml, mimetype="application/xml")
 
+@app.route("/api/posts.json")
+def posts_json():
+    posts = load_posts()
+    out = []
+    for p in posts:
+        img = p.get("image", "")
+        out.append({
+            "slug": p["slug"],
+            "title": p.get("title", ""),
+            "date": p.get("date", ""),
+            "datetime": p.get("datetime", ""),
+            "excerpt": p.get("excerpt", ""),
+            "image": f"https://blog.peka.ai.id/covers/{img}" if FILE_RE.match(img) else None,
+            "url": f"https://blog.peka.ai.id/p/{p['slug']}",
+            "links": p.get("links") or {},
+        })
+    resp = Response(json.dumps(out, ensure_ascii=False), mimetype="application/json")
+    resp.headers["Access-Control-Allow-Origin"] = "*"
+    return resp
+
 @app.route("/healthz")
 def healthz():
     return {"ok": True, "posts": len(load_posts())}
