@@ -6,9 +6,17 @@ import os
 import re
 import sqlite3
 import time
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 from flask import Flask, Response, abort, redirect, request, send_from_directory
+
+WIB = timezone(timedelta(hours=7))
+
+def wib_now():
+    return datetime.now(WIB).strftime("%Y-%m-%d %H:%M:%S")
+
+def wib_hour_ago():
+    return (datetime.now(WIB) - timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 BLOG_DIR = "/home/hatch/workspace/peka-content/blog"
@@ -285,13 +293,13 @@ def rate():
         abort(400)
     ip = client_ip()
     c = db()
-    n = c.execute("SELECT COUNT(*) FROM ratings WHERE ip=? AND created_at > datetime('now','-1 hour')", (ip,)).fetchone()[0]
+    n = c.execute("SELECT COUNT(*) FROM ratings WHERE ip=? AND created_at > ?", (ip, wib_hour_ago())).fetchone()[0]
     if n >= 20:
         c.close()
         return Response(json.dumps({"ok": False}), 429, mimetype="application/json")
-    c.execute("""INSERT INTO ratings(slug,ip,stars,created_at) VALUES(?,?,?,datetime('now','localtime'))
+    c.execute("""INSERT INTO ratings(slug,ip,stars,created_at) VALUES(?,?,?,?)
       ON CONFLICT(slug,ip) DO UPDATE SET stars=excluded.stars, created_at=excluded.created_at""",
-      (slug, ip, stars))
+      (slug, ip, stars, wib_now()))
     c.commit()
     avg, count, mine = rating_stats(c, slug, ip)
     c.close()
@@ -308,12 +316,12 @@ def add_comment():
         abort(400)
     ip = client_ip()
     c = db()
-    n = c.execute("SELECT COUNT(*) FROM comments WHERE ip=? AND created_at > datetime('now','-1 hour')", (ip,)).fetchone()[0]
+    n = c.execute("SELECT COUNT(*) FROM comments WHERE ip=? AND created_at > ?", (ip, wib_hour_ago())).fetchone()[0]
     if n >= 5:
         c.close()
         return Response("Terlalu banyak komentar, coba lagi nanti.", 429)
-    c.execute("INSERT INTO comments(slug,name,body,ip,created_at) VALUES(?,?,?,?,datetime('now','localtime'))",
-              (slug, name, cbody, ip))
+    c.execute("INSERT INTO comments(slug,name,body,ip,created_at) VALUES(?,?,?,?,?)",
+              (slug, name, cbody, ip, wib_now()))
     c.commit()
     c.close()
     return redirect(f"/p/{slug}", 303)
