@@ -58,7 +58,7 @@ a{color:inherit}
 .nav-links a:hover{color:var(--fg)}
 .btn-site{display:inline-flex;align-items:center;min-height:38px;padding:0 16px;background:var(--accent);color:var(--fg)!important;border:1px solid var(--fg);border-radius:var(--radius);font-weight:600;font-size:.85rem!important}
 .btn-site:hover{background:var(--fg);color:var(--bg)!important}
-section.block{padding:56px var(--gutter);border-bottom:1px solid var(--line);position:relative}
+.block{padding:56px var(--gutter);border-bottom:1px solid var(--line);position:relative}
 .eyebrow{display:flex;align-items:center;gap:10px;color:var(--muted);margin-bottom:18px}
 .eyebrow .tick{width:8px;height:8px;background:var(--accent);border:1px solid var(--fg)}
 .lead{font-size:1.15rem;max-width:60ch;color:var(--muted);margin-top:16px}
@@ -96,7 +96,7 @@ textarea{min-height:120px;resize:vertical}
 .stars button.on svg{fill:var(--accent)}
 .stars button:not(.on) svg{fill:none}
 .rate-info{font-size:.72rem}
-.byline{display:flex;align-items:center;gap:10px;margin:16px 0 0;color:var(--muted);font-size:.82rem}
+.byline{display:flex;align-items:center;gap:10px;margin:16px 0 0;color:var(--muted);font-size:.82rem;flex-wrap:wrap}
 .byline img{width:26px;height:26px;border-radius:50%;border:1px solid var(--line)}
 .tagrow{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 18px}
 .share-row{display:flex;flex-wrap:wrap;gap:10px;margin-top:26px;align-items:center}
