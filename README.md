@@ -25,6 +25,7 @@ Blog posts are JSON files written by the Peka AI content engine (see
   "excerpt": "1-2 sentence summary",
   "image": "cover-filename.png",
   "body_html": "<p>...</p>",
+  "tags": ["AI", "Tools AI"],
   "links": {"instagram": "url", "threads": "url", "facebook": "url"}
 }
 ```

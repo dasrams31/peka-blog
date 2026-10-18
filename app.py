@@ -7,8 +7,11 @@ import re
 import sqlite3
 import time
 from datetime import datetime, timedelta, timezone
+from urllib.parse import quote
 
 from flask import Flask, Response, abort, redirect, request, send_from_directory
+
+SITE = "https://blog.peka.ai.id"
 
 WIB = timezone(timedelta(hours=7))
 
@@ -93,6 +96,27 @@ textarea{min-height:120px;resize:vertical}
 .stars button.on svg{fill:var(--accent)}
 .stars button:not(.on) svg{fill:none}
 .rate-info{font-size:.72rem}
+.byline{display:flex;align-items:center;gap:10px;margin:16px 0 0;color:var(--muted);font-size:.82rem}
+.byline img{width:26px;height:26px;border-radius:50%;border:1px solid var(--line)}
+.tagrow{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 18px}
+.share-row{display:flex;flex-wrap:wrap;gap:10px;margin-top:26px;align-items:center}
+.share-row button{font:inherit;cursor:pointer}
+.pnnav{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:26px}
+.pnnav a{border:1px solid var(--line);border-radius:var(--radius);background:#fff;padding:14px 16px;text-decoration:none;display:block;color:inherit}
+.pnnav a:hover{border-color:var(--fg)}
+.pnnav .pn-k{font-size:.68rem}
+.pnnav .pn-t{display:block;font-weight:600;margin-top:4px;line-height:1.35;font-size:.95rem}
+.pnnav .next{text-align:right}
+.featured{display:grid;grid-template-columns:1.1fr 1fr;gap:26px;align-items:center;padding:6px 0 30px;text-decoration:none;color:inherit}
+.featured:hover .ptitle{text-decoration:underline;text-underline-offset:4px}
+.featured .ptitle{font-size:2rem}
+.featured img{width:100%;aspect-ratio:16/10;object-fit:cover;border:1px solid var(--line);border-radius:var(--radius);background:#fff}
+.tagfilter{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px}
+@media(max-width:680px){
+  .featured{grid-template-columns:1fr;gap:14px}
+  .featured .ptitle{font-size:1.6rem}
+  .pnnav{grid-template-columns:1fr}
+}
 @media(max-width:680px){
   .postrow{grid-template-columns:44px 1fr}
   .pthumb{display:none}
@@ -140,6 +164,35 @@ def rating_map():
     c.close()
     return {s: (round(a, 1), n) for s, a, n in rows}
 
+TAG_RE = re.compile(r"^[a-zA-Z0-9 ]{1,24}$")
+
+def post_tags(p):
+    tags = []
+    for t in (p.get("tags") or []):
+        t = str(t).strip()
+        if t and TAG_RE.match(t) and t not in tags:
+            tags.append(t)
+    return tags
+
+def all_tags(posts):
+    seen = []
+    for p in posts:
+        for t in post_tags(p):
+            if t not in seen:
+                seen.append(t)
+    return seen
+
+def reading_time(p):
+    text = re.sub(r"<[^>]+>", " ", p.get("body_html", ""))
+    words = len(re.findall(r"\S+", text))
+    return max(1, round(words / 200))
+
+def cover_img(p, cls):
+    img = p.get("image", "")
+    if FILE_RE.match(img):
+        return f'<img class="{cls}" src="/covers/{img}" alt="{html.escape(p.get("title", ""))}" loading="lazy">'
+    return ""
+
 def load_posts():
     posts = []
     if not os.path.isdir(BLOG_DIR):
@@ -163,17 +216,67 @@ def get_post(slug):
             return p
     return None
 
-def shell(title, body_html):
+def seo_head(p=None):
+    """Per-page SEO: description, canonical, Open Graph, Twitter card, JSON-LD."""
+    if p:
+        title = p.get("title", "")
+        desc = p.get("excerpt", "")
+        url = f"{SITE}/p/{p['slug']}"
+        img = p.get("image", "")
+        img_url = f"{SITE}/covers/{img}" if FILE_RE.match(img) else f"{SITE}/static/logo.png"
+        iso = (p.get("datetime") or p.get("date") or "")[:10]
+        ld = {
+            "@context": "https://schema.org",
+            "@type": "BlogPosting",
+            "headline": title,
+            "description": desc,
+            "image": img_url,
+            "url": url,
+            "datePublished": iso,
+            "inLanguage": "id",
+            "author": {"@type": "Organization", "name": "Peka AI", "url": "https://peka.ai.id"},
+            "publisher": {"@type": "Organization", "name": "Peka AI", "url": "https://peka.ai.id",
+                          "logo": {"@type": "ImageObject", "url": f"{SITE}/static/logo.png"}},
+        }
+        return "\n".join([
+            f'<meta name="description" content="{html.escape(desc)}">',
+            f'<link rel="canonical" href="{url}">',
+            '<meta property="og:type" content="article">',
+            '<meta property="og:site_name" content="Peka AI Blog">',
+            f'<meta property="og:title" content="{html.escape(title)}">',
+            f'<meta property="og:description" content="{html.escape(desc)}">',
+            f'<meta property="og:url" content="{url}">',
+            f'<meta property="og:image" content="{img_url}">',
+            f'<meta property="article:published_time" content="{iso}">',
+            '<meta name="twitter:card" content="summary_large_image">',
+            f'<meta name="twitter:title" content="{html.escape(title)}">',
+            f'<meta name="twitter:description" content="{html.escape(desc)}">',
+            f'<meta name="twitter:image" content="{img_url}">',
+            f'<script type="application/ld+json">{json.dumps(ld, ensure_ascii=False)}</script>',
+        ])
+    desc = "Arsip tulisan Peka AI: info AI terbaru, tools, project, dan info bansos."
+    return "\n".join([
+        f'<meta name="description" content="{desc}">',
+        f'<link rel="canonical" href="{SITE}/">',
+        '<meta property="og:type" content="website">',
+        '<meta property="og:site_name" content="Peka AI Blog">',
+        '<meta property="og:title" content="Peka AI Blog">',
+        f'<meta property="og:description" content="{desc}">',
+        f'<meta property="og:url" content="{SITE}/">',
+        f'<meta property="og:image" content="{SITE}/static/logo.png">',
+    ])
+
+def shell(title, body_html, head_extra=""):
     t = f"{html.escape(title)} · Peka AI Blog" if title != "Arsip" else "Peka AI Blog · info AI & bansos harian"
     return f"""<!doctype html><html lang="id"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#f3f3f0">
-<meta name="description" content="Arsip tulisan Peka AI: info AI terbaru, tools, project, dan info bansos.">
 <link rel="icon" href="/static/favicon.ico" sizes="48x48">
 <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
 <link rel="icon" type="image/png" sizes="96x96" href="/static/favicon-96.png">
 <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
 <title>{t}</title>
+{head_extra}
 <style>{CSS}</style></head><body>
 <nav class="nav"><div class="frame"><div class="nav-inner">
 <a class="brand" href="/"><img class="logo" src="/static/logo.png" alt="Logo Peka AI">peka.ai.id <span class="muted mono">/ blog</span></a>
@@ -187,44 +290,110 @@ def shell(title, body_html):
 def index():
     posts = load_posts()
     rmap = rating_map()
+    tags = all_tags(posts)
+    active = request.args.get("tag", "")
+    if active not in tags:
+        active = ""
+    shown = [p for p in posts if active in post_tags(p)] if active else posts
+
+    frow = '<div class="tagfilter"><span class="mono muted" style="align-self:center">topik:</span>'
+    frow += f'<a class="tag{" ghost" if active else ""}" href="/">Semua</a>'
+    for t in tags:
+        frow += f'<a class="tag{" ghost" if t != active else ""}" href="/?tag={quote(t)}">{html.escape(t)}</a>'
+    frow += "</div>"
+
+    feat = ""
+    rest = shown
+    if not active and shown:
+        f = shown[0]
+        rest = shown[1:]
+        feat = f"""<a class="featured" href="/p/{f['slug']}">{cover_img(f, "pimg")}
+<span><span class="mono muted" style="display:block;margin-bottom:8px">sorotan · {html.escape(fmt_date(f.get('date', '')))}</span>
+<span class="ptitle">{html.escape(f.get('title', ''))}</span>
+<span class="pexcerpt" style="display:block;margin-top:10px">{html.escape(f.get('excerpt', ''))}</span></span></a>"""
+
     rows = []
-    for i, p in enumerate(posts, 1):
-        img = ""
-        if FILE_RE.match(p.get("image", "")):
-            img = f'<img class="pthumb" src="/covers/{p["image"]}" alt="" loading="lazy">'
+    start = 2 if feat else 1
+    for i, p in enumerate(rest, start):
         meta = fmt_date(p.get("date", ""))
         if p["slug"] in rmap:
             avg, n = rmap[p["slug"]]
             meta += f" · {avg}/5 ({n} penilaian)"
+        trow = "".join(f'<span class="tag ghost" style="font-size:.62rem;padding:4px 8px">{html.escape(t)}</span>'
+                       for t in post_tags(p))
         rows.append(f"""<a class="postrow" href="/p/{p['slug']}">
 <span class="pnum">{i:02d}</span>
 <span><span class="mono muted" style="display:block;margin-bottom:6px">{html.escape(meta)}</span>
 <span class="ptitle">{html.escape(p.get('title',''))}</span>
-<span class="pexcerpt">{html.escape(p.get('excerpt',''))}</span></span>
-{img}</a>""")
+<span class="pexcerpt">{html.escape(p.get('excerpt',''))}</span>
+<span style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">{trow}</span></span>
+{cover_img(p, "pthumb")}</a>""")
+    nline = f"arsip / {len(shown)} tulisan"
+    if active:
+        nline += f" · topik {active}"
     body = f"""<section class="block">
 <p class="mono eyebrow"><span class="tick"></span><span>peka.ai.id / blog</span></p>
 <h1>Sinyal AI,<br>dikutip <span style="background:var(--accent);padding:0 .1em">peka</span>.</h1>
 <p class="lead">Arsip setiap postingan Peka AI: info AI terbaru, tools, project, dan info bansos. Sama dengan yang tayang di Instagram dan Threads. Di sini versi lengkapnya, plus kolom komentar.</p>
 </section>
-<section class="block"><p class="mono muted" style="margin-bottom:8px">arsip / {len(posts)} tulisan</p>
-{''.join(rows) if rows else '<p class="muted">Belum ada tulisan.</p>'}</section>"""
-    return shell("Arsip", body)
+<section class="block">{frow}
+<p class="mono muted" style="margin:10px 0 8px">{html.escape(nline)}</p>
+{feat}
+{''.join(rows) if rows else '<p class="muted">Belum ada tulisan di topik ini.</p>'}</section>"""
+    return shell("Arsip", body, seo_head())
 
 @app.route("/p/<slug>")
 def post(slug):
     if not SLUG_RE.match(slug):
         abort(404)
-    p = get_post(slug)
+    allp = load_posts()
+    p = next((x for x in allp if x["slug"] == slug), None)
     if not p:
         abort(404)
-    img = ""
-    if FILE_RE.match(p.get("image", "")):
-        img = f'<img class="cover" src="/covers/{p["image"]}" alt="{html.escape(p.get("title",""))}">'
+    title = p.get("title", "")
+    page_url = f"{SITE}/p/{slug}"
+    iso = (p.get("datetime") or p.get("date") or "")[:10]
+
     links = []
     for label, url in (p.get("links") or {}).items():
         if url and url.startswith("http"):
             links.append(f'<a class="tag ghost" href="{html.escape(url)}">{html.escape(label)}</a>')
+
+    trow = "".join(
+        f'<a class="tag" href="/?tag={quote(t)}">{html.escape(t)}</a>' for t in post_tags(p))
+    trow = f'<div class="tagrow">{trow}</div>' if trow else ""
+
+    share = [("WhatsApp", f"https://wa.me/?text={quote(title + ' ' + page_url)}"),
+             ("X", f"https://twitter.com/intent/tweet?text={quote(title)}&url={quote(page_url)}"),
+             ("Telegram", f"https://t.me/share/url?url={quote(page_url)}&text={quote(title)}")]
+    sh = '<div class="share-row"><span class="mono muted">bagikan:</span>' + "".join(
+        f'<a class="tag ghost" target="_blank" rel="noopener" href="{u}">{n}</a>' for n, u in share)
+    sh += (f'<button class="tag ghost" type="button" data-copy="{page_url}">salin tautan</button></div>'
+           '<script>(function(){var b=document.querySelector("[data-copy]");if(!b)return;'
+           'b.addEventListener("click",function(){navigator.clipboard.writeText(b.dataset.copy);'
+           'b.textContent="disalin!";});})();</script>')
+
+    idx = next(i for i, x in enumerate(allp) if x["slug"] == slug)
+    older = allp[idx + 1] if idx + 1 < len(allp) else None
+    newer = allp[idx - 1] if idx - 1 >= 0 else None
+    pn = '<nav class="pnnav" aria-label="Navigasi tulisan">'
+    pn += (f'<a href="/p/{older["slug"]}"><span class="mono muted pn-k">← lebih lama</span>'
+           f'<span class="pn-t">{html.escape(older.get("title", ""))}</span></a>' if older else '<span></span>')
+    pn += (f'<a class="next" href="/p/{newer["slug"]}"><span class="mono muted pn-k">lebih baru →</span>'
+           f'<span class="pn-t">{html.escape(newer.get("title", ""))}</span></a>' if newer else '<span></span>')
+    pn += "</nav>"
+
+    others = [x for x in allp if x["slug"] != slug][:3]
+    rel = ""
+    if others:
+        rel = ('<div style="margin-top:30px"><p class="mono eyebrow"><span class="tick"></span>'
+               '<span>baca juga</span></p>' + "".join(
+            f"""<a class="postrow" href="/p/{x['slug']}">
+<span class="pnum">→</span>
+<span><span class="mono muted" style="display:block;margin-bottom:6px">{html.escape(fmt_date(x.get('date', '')))}</span>
+<span class="ptitle" style="font-size:1.2rem">{html.escape(x.get('title', ''))}</span></span>
+{cover_img(x, "pthumb")}</a>""" for x in others) + "</div>")
+
     ip = client_ip()
     c = db()
     rav, rcount, mine = rating_stats(c, slug, ip)
@@ -234,15 +403,19 @@ def post(slug):
         f'<div class="cmt"><div class="cmt-head"><span class="cmt-name">{html.escape(n)}</span>'
         f'<span class="cmt-date">{html.escape(d)}</span></div><p>{html.escape(b)}</p></div>'
         for n, b, d in cmts) or '<p class="muted">Belum ada komentar. Jadi yang pertama.</p>'
-    body = f"""<section class="block">
+    body = f"""<article class="block">
 <a class="mono back" href="/">← arsip</a>
-<p class="mono eyebrow"><span class="tick"></span><span>{html.escape(fmt_date(p.get('date','')))}</span></p>
-<h1 style="max-width:20ch">{html.escape(p.get('title',''))}</h1>
-{img}
+{trow}
+<h1 style="max-width:20ch">{html.escape(title)}</h1>
+<p class="byline"><img src="/static/logo.png" alt="Peka AI"><span class="mono">Peka AI · <time datetime="{iso}">{html.escape(fmt_date(p.get('date', '')))}</time> · {reading_time(p)} menit baca</span></p>
+{cover_img(p, "cover")}
 <div class="body">{p.get('body_html','')}</div>
 <div class="links-row"><span class="mono muted" style="align-self:center">tayang juga di:</span>{''.join(links)}</div>
+{sh}
 {rating_block(slug, rav, rcount, mine)}
-</section>
+{rel}
+{pn}
+</article>
 <section class="block">
 <p class="mono eyebrow"><span class="tick"></span><span>komentar / {len(cmts)}</span></p>
 {chtml}
@@ -253,7 +426,7 @@ def post(slug):
 <textarea name="body" maxlength="1000" placeholder="Tulis komentar..." required></textarea>
 <button class="btn" type="submit">Kirim komentar</button>
 </form></section>"""
-    return shell(p.get("title", ""), body)
+    return shell(title, body, seo_head(p))
 
 @app.route("/covers/<filename>")
 def cover(filename):
