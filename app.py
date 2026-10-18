@@ -41,10 +41,12 @@ a{color:inherit}
 .nav{position:sticky;top:0;z-index:50;background:var(--bg);border-bottom:1px solid var(--line)}
 .nav-inner{display:flex;align-items:center;gap:20px;height:60px;padding:0 var(--gutter)}
 .brand{display:inline-flex;align-items:center;gap:10px;font-weight:600;letter-spacing:-0.03em;text-decoration:none;font-size:1.05rem}
-.brand .mark{width:22px;height:22px;background:var(--accent);border:1px solid var(--fg);display:inline-grid;place-items:center;font-family:var(--mono);font-size:.8rem;font-weight:700}
-.nav-links{margin-left:auto;display:flex;gap:18px}
+.brand .logo{width:30px;height:30px;border-radius:50%;border:1px solid var(--line);background:#111}
+.nav-links{margin-left:auto;display:flex;gap:18px;align-items:center}
 .nav-links a{text-decoration:none;font-size:.9rem;color:var(--muted)}
 .nav-links a:hover{color:var(--fg)}
+.btn-site{display:inline-flex;align-items:center;min-height:38px;padding:0 16px;background:var(--accent);color:var(--fg)!important;border:1px solid var(--fg);border-radius:var(--radius);font-weight:600;font-size:.85rem!important}
+.btn-site:hover{background:var(--fg);color:var(--bg)!important}
 section.block{padding:56px var(--gutter);border-bottom:1px solid var(--line);position:relative}
 .eyebrow{display:flex;align-items:center;gap:10px;color:var(--muted);margin-bottom:18px}
 .eyebrow .tick{width:8px;height:8px;background:var(--accent);border:1px solid var(--fg)}
@@ -57,7 +59,7 @@ section.block{padding:56px var(--gutter);border-bottom:1px solid var(--line);pos
 .ptitle{display:block;font-size:1.5rem;letter-spacing:-0.03em;font-weight:500;margin:6px 0}
 .pexcerpt{display:block;color:var(--muted);font-size:.95rem}
 .pthumb{width:200px;height:120px;object-fit:cover;border:1px solid var(--line);border-radius:var(--radius);background:#fff}
-.cover{width:100%;max-height:460px;object-fit:cover;border:1px solid var(--line);border-radius:var(--radius);margin:28px 0}
+.cover{width:100%;aspect-ratio:16/9;max-height:360px;object-fit:cover;border:1px solid var(--line);border-radius:var(--radius);margin:28px 0;background:#fff}
 .body{font-size:1.08rem;max-width:68ch}
 .body p{margin-bottom:1.1em}
 .links-row{display:flex;flex-wrap:wrap;gap:12px;margin-top:28px}
@@ -72,6 +74,15 @@ input,textarea{font:inherit;padding:12px 14px;border:1px solid var(--fg);border-
 textarea{min-height:120px;resize:vertical}
 .hp{position:absolute;left:-9999px;top:-9999px}
 .footer{padding:36px var(--gutter);display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;color:var(--muted)}
+.rate{border:1px solid var(--line);border-radius:var(--radius);background:#fff;padding:20px 22px;margin-top:28px}
+.rate-top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+.stars{display:flex;gap:4px}
+.stars button{background:none;border:0;padding:8px;cursor:pointer;line-height:0;min-width:44px;min-height:44px}
+.stars button:disabled{cursor:default}
+.stars svg{width:28px;height:28px;stroke:var(--fg);stroke-width:1.4}
+.stars button.on svg{fill:var(--accent)}
+.stars button:not(.on) svg{fill:none}
+.rate-info{font-size:.72rem}
 @media(max-width:680px){
   .postrow{grid-template-columns:44px 1fr}
   .pthumb{display:none}
@@ -88,7 +99,19 @@ def db():
       id INTEGER PRIMARY KEY AUTOINCREMENT, slug TEXT NOT NULL,
       name TEXT NOT NULL, body TEXT NOT NULL, ip TEXT, created_at TEXT NOT NULL)""")
     c.execute("CREATE INDEX IF NOT EXISTS idx_cslug ON comments(slug)")
+    c.execute("""CREATE TABLE IF NOT EXISTS ratings(
+      slug TEXT NOT NULL, ip TEXT NOT NULL, stars INTEGER NOT NULL,
+      created_at TEXT NOT NULL, PRIMARY KEY (slug, ip))""")
     return c
+
+def client_ip():
+    return request.headers.get("X-Forwarded-For", request.remote_addr or "").split(",")[0].strip()
+
+def rating_stats(c, slug, ip):
+    row = c.execute("SELECT AVG(stars), COUNT(*) FROM ratings WHERE slug=?", (slug,)).fetchone()
+    mine = c.execute("SELECT stars FROM ratings WHERE slug=? AND ip=?", (slug, ip)).fetchone()
+    avg = round(row[0], 1) if row[0] else 0
+    return avg, row[1], (mine[0] if mine else 0)
 
 def load_posts():
     posts = []
@@ -119,8 +142,8 @@ def shell(title, body_html):
 <title>{html.escape(title)} — Peka AI Blog</title>
 <style>{CSS}</style></head><body>
 <nav class="nav"><div class="frame"><div class="nav-inner">
-<a class="brand" href="/"><span class="mark">P</span>peka.ai.id <span class="muted mono">/ blog</span></a>
-<div class="nav-links"><a class="hide-m" href="https://peka.ai.id">peka.ai.id</a><a href="https://www.instagram.com/peka.ai.id">Instagram</a><a href="https://www.threads.com/@peka.ai.id">Threads</a></div>
+<a class="brand" href="/"><img class="logo" src="/static/logo.png" alt="Logo Peka AI">peka.ai.id <span class="muted mono">/ blog</span></a>
+<div class="nav-links"><a class="hide-m" href="https://www.instagram.com/peka.ai.id">Instagram</a><a class="hide-m" href="https://www.threads.com/@peka.ai.id">Threads</a><a class="btn-site" href="https://peka.ai.id">Website resmi</a></div>
 </div></div></nav>
 <div class="frame">{body_html}
 <footer class="footer"><span class="mono">peka.ai.id — blog</span><span class="mono muted">info ai &amp; bansos, dikurasi tiap hari</span></footer>
@@ -163,7 +186,9 @@ def post(slug):
     for label, url in (p.get("links") or {}).items():
         if url and url.startswith("http"):
             links.append(f'<a class="tag ghost" href="{html.escape(url)}">{html.escape(label)}</a>')
+    ip = client_ip()
     c = db()
+    rav, rcount, mine = rating_stats(c, slug, ip)
     cmts = c.execute("SELECT name, body, created_at FROM comments WHERE slug=? ORDER BY id ASC", (slug,)).fetchall()
     c.close()
     chtml = "".join(
@@ -176,6 +201,7 @@ def post(slug):
 {img}
 <div class="body">{p.get('body_html','')}</div>
 <div class="links-row"><span class="mono muted" style="align-self:center">tayang juga di:</span>{''.join(links)}</div>
+{rating_block(slug, rav, rcount, mine)}
 </section>
 <section class="block">
 <p class="mono eyebrow"><span class="tick"></span><span>komentar / {len(cmts)}</span></p>
@@ -195,7 +221,49 @@ def cover(filename):
         abort(404)
     return send_from_directory(IMG_DIR, filename)
 
-@app.route("/api/comments", methods=["POST"])
+STAR_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.95 6.26 6.55.72-4.9 4.55 1.35 6.47L12 17.4l-5.95 3.1 1.35-6.47-4.9-4.55 6.55-.72z"/></svg>'
+
+def rating_block(slug, avg, count, mine):
+    info = f"{avg} / 5 — {count} penilaian" if count else "belum ada penilaian"
+    btns = "".join(
+        f'<button type="button" data-stars="{i}" class="{"on" if i <= mine else ""}" aria-label="{i} bintang">{STAR_SVG}</button>'
+        for i in range(1, 6))
+    return f"""<div class="rate" data-slug="{html.escape(slug)}">
+<div class="rate-top"><p class="mono">kasih rating tulisan ini</p><p class="mono muted rate-info" data-role="info">{info}</p></div>
+<div class="stars" data-role="stars">{btns}</div></div>
+<script>(function(){{var box=document.querySelector('.rate');if(!box)return;
+var slug=box.dataset.slug,stars=box.querySelector('[data-role=stars]'),info=box.querySelector('[data-role=info]');
+function paint(n){{stars.querySelectorAll('button').forEach(function(b){{b.classList.toggle('on',+b.dataset.stars<=n);}});}}
+stars.addEventListener('click',function(e){{var b=e.target.closest('button');if(!b||b.disabled)return;
+var v=+b.dataset.stars;stars.querySelectorAll('button').forEach(function(x){{x.disabled=true;}});
+fetch('/api/rate',{{method:'POST',headers:{{'Content-Type':'application/x-www-form-urlencoded'}},body:'slug='+encodeURIComponent(slug)+'&stars='+v}})
+.then(function(r){{return r.json();}}).then(function(d){{
+if(d.ok){{paint(d.mine);info.textContent=d.avg+' / 5 — '+d.count+' penilaian';}}
+stars.querySelectorAll('button').forEach(function(x){{x.disabled=false;}});}})
+.catch(function(){{stars.querySelectorAll('button').forEach(function(x){{x.disabled=false;}});}});}});}})();</script>"""
+
+@app.route("/api/rate", methods=["POST"])
+def rate():
+    slug = request.form.get("slug", "")
+    try:
+        stars = int(request.form.get("stars", "0"))
+    except ValueError:
+        stars = 0
+    if not SLUG_RE.match(slug) or not get_post(slug) or not 1 <= stars <= 5:
+        abort(400)
+    ip = client_ip()
+    c = db()
+    n = c.execute("SELECT COUNT(*) FROM ratings WHERE ip=? AND created_at > datetime('now','-1 hour')", (ip,)).fetchone()[0]
+    if n >= 20:
+        c.close()
+        return Response(json.dumps({"ok": False}), 429, mimetype="application/json")
+    c.execute("""INSERT INTO ratings(slug,ip,stars,created_at) VALUES(?,?,?,datetime('now','localtime'))
+      ON CONFLICT(slug,ip) DO UPDATE SET stars=excluded.stars, created_at=excluded.created_at""",
+      (slug, ip, stars))
+    c.commit()
+    avg, count, mine = rating_stats(c, slug, ip)
+    c.close()
+    return {"ok": True, "avg": avg, "count": count, "mine": mine}
 def add_comment():
     slug = request.form.get("slug", "")
     name = request.form.get("name", "").strip()
@@ -206,7 +274,7 @@ def add_comment():
         abort(404)
     if not name or not cbody or len(name) > 40 or len(cbody) > 1000:
         abort(400)
-    ip = request.headers.get("X-Forwarded-For", request.remote_addr or "").split(",")[0].strip()
+    ip = client_ip()
     c = db()
     n = c.execute("SELECT COUNT(*) FROM comments WHERE ip=? AND created_at > datetime('now','-1 hour')", (ip,)).fetchone()[0]
     if n >= 5:

@@ -33,6 +33,15 @@ The app scans that directory on every request, so new posts appear without a
 restart. Cover images are served from
 `/home/hatch/workspace/peka-content/images/` via `/covers/<file>`.
 
+## Features
+
+- Post pages with cover image (16:9, capped height), "also published on"
+  links (Instagram/Threads/Facebook), and a comment section.
+- **Star rating** on every post: 5 SVG stars, one vote per IP per post
+  (stored in SQLite `ratings` table), live average + vote count.
+- Nav uses the real Peka mascot logo (`static/logo.png`) and a yellow
+  "Website resmi" button linking to `https://peka.ai.id`.
+
 ## Routes
 
 | Route            | Description                                      |
@@ -41,6 +50,7 @@ restart. Cover images are served from
 | `/p/<slug>`      | Post page with cover, comment section            |
 | `/covers/<file>` | Cover images from the content engine             |
 | `/api/comments`  | POST new comment (rate limit 5/hour/IP, honeypot) |
+| `/api/rate`      | POST star rating 1-5 (one vote per IP per post, updates allowed) |
 | `/sitemap.xml`   | Auto-generated sitemap                           |
 | `/robots.txt`    | Points to the sitemap                            |
 | `/healthz`       | Health check (`{"ok": true, "posts": N}`)        |
