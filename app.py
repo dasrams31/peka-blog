@@ -1,0 +1,245 @@
+#!/usr/bin/env python3
+"""Peka AI blog — blog.peka.ai.id. Spec-sheet aesthetic mirroring peka.ai.id."""
+import html
+import json
+import os
+import re
+import sqlite3
+import time
+from datetime import datetime
+
+from flask import Flask, Response, abort, redirect, request, send_from_directory
+
+BASE = os.path.dirname(os.path.abspath(__file__))
+BLOG_DIR = "/home/hatch/workspace/peka-content/blog"
+IMG_DIR = "/home/hatch/workspace/peka-content/images"
+DB = os.path.join(BASE, "comments.db")
+
+app = Flask(__name__)
+
+SLUG_RE = re.compile(r"^[a-z0-9-]{1,80}$")
+FILE_RE = re.compile(r"^[A-Za-z0-9._-]{1,80}$")
+
+CSS = """
+:root{
+  --bg:#f3f3f0; --fg:#111111; --muted:#5c5c5a; --line:#d6d6d2;
+  --accent:#ffd60a; --neu:#b8b8b4; --radius:2px;
+  --font:"Inter Tight",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:ui-monospace,"SF Mono","Cascadia Mono",Menlo,Consolas,monospace;
+  --frame-w:1120px; --gutter:28px;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
+h1,h2,h3{margin:0;font-weight:500;line-height:1.02;letter-spacing:-0.04em}
+h1{font-size:clamp(2.4rem,6vw,4.5rem)}
+h2{font-size:clamp(1.5rem,3.5vw,2.4rem)}
+p{margin:0 0 1em}
+a{color:inherit}
+.mono{font-family:var(--mono);font-size:.75rem;text-transform:uppercase;letter-spacing:.04em}
+.muted{color:var(--muted)}
+.frame{width:min(100%,var(--frame-w));margin:0 auto;border-left:1px solid var(--line);border-right:1px solid var(--line)}
+.nav{position:sticky;top:0;z-index:50;background:var(--bg);border-bottom:1px solid var(--line)}
+.nav-inner{display:flex;align-items:center;gap:20px;height:60px;padding:0 var(--gutter)}
+.brand{display:inline-flex;align-items:center;gap:10px;font-weight:600;letter-spacing:-0.03em;text-decoration:none;font-size:1.05rem}
+.brand .mark{width:22px;height:22px;background:var(--accent);border:1px solid var(--fg);display:inline-grid;place-items:center;font-family:var(--mono);font-size:.8rem;font-weight:700}
+.nav-links{margin-left:auto;display:flex;gap:18px}
+.nav-links a{text-decoration:none;font-size:.9rem;color:var(--muted)}
+.nav-links a:hover{color:var(--fg)}
+section.block{padding:56px var(--gutter);border-bottom:1px solid var(--line);position:relative}
+.eyebrow{display:flex;align-items:center;gap:10px;color:var(--muted);margin-bottom:18px}
+.eyebrow .tick{width:8px;height:8px;background:var(--accent);border:1px solid var(--fg)}
+.lead{font-size:1.15rem;max-width:60ch;color:var(--muted);margin-top:16px}
+.btn{display:inline-flex;align-items:center;gap:10px;min-height:44px;padding:0 20px;background:var(--fg);color:var(--bg);border:1px solid var(--fg);border-radius:var(--radius);font:inherit;font-weight:500;font-size:.95rem;text-decoration:none;cursor:pointer}
+.btn:hover{background:transparent;color:var(--fg)}
+.postrow{display:grid;grid-template-columns:64px 1fr 200px;gap:20px;align-items:center;padding:26px 0;border-bottom:1px solid var(--line);text-decoration:none}
+.postrow:hover .ptitle{text-decoration:underline;text-underline-offset:4px}
+.pnum{font-family:var(--mono);font-size:.85rem;color:var(--muted)}
+.ptitle{display:block;font-size:1.5rem;letter-spacing:-0.03em;font-weight:500;margin:6px 0}
+.pexcerpt{display:block;color:var(--muted);font-size:.95rem}
+.pthumb{width:200px;height:120px;object-fit:cover;border:1px solid var(--line);border-radius:var(--radius);background:#fff}
+.cover{width:100%;max-height:460px;object-fit:cover;border:1px solid var(--line);border-radius:var(--radius);margin:28px 0}
+.body{font-size:1.08rem;max-width:68ch}
+.body p{margin-bottom:1.1em}
+.links-row{display:flex;flex-wrap:wrap;gap:12px;margin-top:28px}
+.tag{display:inline-block;padding:6px 12px;border:1px solid var(--fg);border-radius:var(--radius);font-family:var(--mono);font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;text-decoration:none;background:var(--accent)}
+.tag.ghost{background:transparent}
+.cmt{border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;margin-bottom:12px;background:#fff}
+.cmt-head{display:flex;gap:12px;align-items:baseline;margin-bottom:6px}
+.cmt-name{font-weight:600}
+.cmt-date{font-family:var(--mono);font-size:.7rem;color:var(--muted);text-transform:uppercase}
+form.cform{display:grid;gap:12px;max-width:560px;margin-top:20px}
+input,textarea{font:inherit;padding:12px 14px;border:1px solid var(--fg);border-radius:var(--radius);background:#fff;color:var(--fg);width:100%}
+textarea{min-height:120px;resize:vertical}
+.hp{position:absolute;left:-9999px;top:-9999px}
+.footer{padding:36px var(--gutter);display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;color:var(--muted)}
+@media(max-width:680px){
+  .postrow{grid-template-columns:44px 1fr}
+  .pthumb{display:none}
+  section.block{padding:36px var(--gutter)}
+  .nav-links a.hide-m{display:none}
+  .nav-links{gap:14px}
+  .brand{font-size:.95rem}
+}
+"""
+
+def db():
+    c = sqlite3.connect(DB)
+    c.execute("""CREATE TABLE IF NOT EXISTS comments(
+      id INTEGER PRIMARY KEY AUTOINCREMENT, slug TEXT NOT NULL,
+      name TEXT NOT NULL, body TEXT NOT NULL, ip TEXT, created_at TEXT NOT NULL)""")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_cslug ON comments(slug)")
+    return c
+
+def load_posts():
+    posts = []
+    if not os.path.isdir(BLOG_DIR):
+        return posts
+    for fn in os.listdir(BLOG_DIR):
+        if not fn.endswith(".json"):
+            continue
+        try:
+            with open(os.path.join(BLOG_DIR, fn), encoding="utf-8") as f:
+                p = json.load(f)
+            if SLUG_RE.match(p.get("slug", "")):
+                posts.append(p)
+        except (OSError, ValueError):
+            continue
+    posts.sort(key=lambda p: p.get("datetime", ""), reverse=True)
+    return posts
+
+def get_post(slug):
+    for p in load_posts():
+        if p["slug"] == slug:
+            return p
+    return None
+
+def shell(title, body_html):
+    return f"""<!doctype html><html lang="id"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{html.escape(title)} — Peka AI Blog</title>
+<style>{CSS}</style></head><body>
+<nav class="nav"><div class="frame"><div class="nav-inner">
+<a class="brand" href="/"><span class="mark">P</span>peka.ai.id <span class="muted mono">/ blog</span></a>
+<div class="nav-links"><a class="hide-m" href="https://peka.ai.id">peka.ai.id</a><a href="https://www.instagram.com/peka.ai.id">Instagram</a><a href="https://www.threads.com/@peka.ai.id">Threads</a></div>
+</div></div></nav>
+<div class="frame">{body_html}
+<footer class="footer"><span class="mono">peka.ai.id — blog</span><span class="mono muted">info ai &amp; bansos, dikurasi tiap hari</span></footer>
+</div></body></html>"""
+
+@app.route("/")
+def index():
+    posts = load_posts()
+    rows = []
+    for i, p in enumerate(posts, 1):
+        img = ""
+        if FILE_RE.match(p.get("image", "")):
+            img = f'<img class="pthumb" src="/covers/{p["image"]}" alt="" loading="lazy">'
+        rows.append(f"""<a class="postrow" href="/p/{p['slug']}">
+<span class="pnum">{i:02d}</span>
+<span><span class="mono muted" style="display:block;margin-bottom:6px">{html.escape(p.get('date',''))}</span>
+<span class="ptitle">{html.escape(p.get('title',''))}</span>
+<span class="pexcerpt">{html.escape(p.get('excerpt',''))}</span></span>
+{img}</a>""")
+    body = f"""<section class="block">
+<p class="mono eyebrow"><span class="tick"></span><span>peka.ai.id — blog</span></p>
+<h1>Sinyal AI,<br>dikutip <span style="background:var(--accent);padding:0 .1em">peka</span>.</h1>
+<p class="lead">Arsip setiap postingan Peka AI: info AI terbaru, tools, project, dan info bansos. Sama dengan yang tayang di Instagram dan Threads — di sini versi lengkapnya, plus kolom komentar.</p>
+</section>
+<section class="block"><p class="mono muted" style="margin-bottom:8px">arsip / {len(posts)} tulisan</p>
+{''.join(rows) if rows else '<p class="muted">Belum ada tulisan.</p>'}</section>"""
+    return shell("Arsip", body)
+
+@app.route("/p/<slug>")
+def post(slug):
+    if not SLUG_RE.match(slug):
+        abort(404)
+    p = get_post(slug)
+    if not p:
+        abort(404)
+    img = ""
+    if FILE_RE.match(p.get("image", "")):
+        img = f'<img class="cover" src="/covers/{p["image"]}" alt="{html.escape(p.get("title",""))}">'
+    links = []
+    for label, url in (p.get("links") or {}).items():
+        if url and url.startswith("http"):
+            links.append(f'<a class="tag ghost" href="{html.escape(url)}">{html.escape(label)}</a>')
+    c = db()
+    cmts = c.execute("SELECT name, body, created_at FROM comments WHERE slug=? ORDER BY id ASC", (slug,)).fetchall()
+    c.close()
+    chtml = "".join(
+        f'<div class="cmt"><div class="cmt-head"><span class="cmt-name">{html.escape(n)}</span>'
+        f'<span class="cmt-date">{html.escape(d)}</span></div><p>{html.escape(b)}</p></div>'
+        for n, b, d in cmts) or '<p class="muted">Belum ada komentar. Jadi yang pertama.</p>'
+    body = f"""<section class="block">
+<p class="mono eyebrow"><span class="tick"></span><span>{html.escape(p.get('date',''))} — peka.ai.id</span></p>
+<h1 style="max-width:20ch">{html.escape(p.get('title',''))}</h1>
+{img}
+<div class="body">{p.get('body_html','')}</div>
+<div class="links-row"><span class="mono muted" style="align-self:center">tayang juga di:</span>{''.join(links)}</div>
+</section>
+<section class="block">
+<p class="mono eyebrow"><span class="tick"></span><span>komentar / {len(cmts)}</span></p>
+{chtml}
+<form class="cform" method="post" action="/api/comments">
+<input type="hidden" name="slug" value="{html.escape(slug)}">
+<input class="hp" type="text" name="website" tabindex="-1" autocomplete="off">
+<input type="text" name="name" maxlength="40" placeholder="Nama" required>
+<textarea name="body" maxlength="1000" placeholder="Tulis komentar..." required></textarea>
+<button class="btn" type="submit">Kirim komentar</button>
+</form></section>"""
+    return shell(p.get("title", ""), body)
+
+@app.route("/covers/<filename>")
+def cover(filename):
+    if not FILE_RE.match(filename):
+        abort(404)
+    return send_from_directory(IMG_DIR, filename)
+
+@app.route("/api/comments", methods=["POST"])
+def add_comment():
+    slug = request.form.get("slug", "")
+    name = request.form.get("name", "").strip()
+    cbody = request.form.get("body", "").strip()
+    if request.form.get("website"):
+        return redirect(f"/p/{slug}", 303)
+    if not SLUG_RE.match(slug) or not get_post(slug):
+        abort(404)
+    if not name or not cbody or len(name) > 40 or len(cbody) > 1000:
+        abort(400)
+    ip = request.headers.get("X-Forwarded-For", request.remote_addr or "").split(",")[0].strip()
+    c = db()
+    n = c.execute("SELECT COUNT(*) FROM comments WHERE ip=? AND created_at > datetime('now','-1 hour')", (ip,)).fetchone()[0]
+    if n >= 5:
+        c.close()
+        return Response("Terlalu banyak komentar, coba lagi nanti.", 429)
+    c.execute("INSERT INTO comments(slug,name,body,ip,created_at) VALUES(?,?,?,?,datetime('now','localtime'))",
+              (slug, name, cbody, ip))
+    c.commit()
+    c.close()
+    return redirect(f"/p/{slug}", 303)
+
+@app.route("/robots.txt")
+def robots():
+    txt = "User-agent: *\nAllow: /\nSitemap: https://blog.peka.ai.id/sitemap.xml\n"
+    return Response(txt, mimetype="text/plain")
+
+@app.route("/sitemap.xml")
+def sitemap():
+    posts = load_posts()
+    urls = ['<url><loc>https://blog.peka.ai.id/</loc><changefreq>daily</changefreq><priority>1.0</priority></url>']
+    for p in posts:
+        slug = p["slug"]
+        lastmod = (p.get("datetime") or p.get("date") or "")[:10]
+        lm = f"<lastmod>{lastmod}</lastmod>" if lastmod else ""
+        urls.append(f"<url><loc>https://blog.peka.ai.id/p/{slug}</loc>{lm}<changefreq>weekly</changefreq><priority>0.8</priority></url>")
+    xml = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' + "\n".join(urls) + "\n</urlset>"
+    return Response(xml, mimetype="application/xml")
+
+@app.route("/healthz")
+def healthz():
+    return {"ok": True, "posts": len(load_posts())}
+
+if __name__ == "__main__":
+    os.makedirs(BLOG_DIR, exist_ok=True)
+    db().close()
+    app.run(host="127.0.0.1", port=18102)
