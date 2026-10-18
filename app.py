@@ -74,6 +74,8 @@ input,textarea{font:inherit;padding:12px 14px;border:1px solid var(--fg);border-
 textarea{min-height:120px;resize:vertical}
 .hp{position:absolute;left:-9999px;top:-9999px}
 .footer{padding:36px var(--gutter);display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;color:var(--muted)}
+.back{display:inline-block;margin-bottom:16px;text-decoration:none;font-size:.78rem;color:var(--muted)}
+.back:hover{color:var(--fg);text-decoration:underline;text-underline-offset:4px}
 .rate{border:1px solid var(--line);border-radius:var(--radius);background:#fff;padding:20px 22px;margin-top:28px}
 .rate-top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px}
 .stars{display:flex;gap:4px}
@@ -107,11 +109,28 @@ def db():
 def client_ip():
     return request.headers.get("X-Forwarded-For", request.remote_addr or "").split(",")[0].strip()
 
+BULAN = ["", "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+         "Juli", "Agustus", "September", "Oktober", "November", "Desember"]
+
+def fmt_date(d):
+    """'2026-10-18' -> '18 Oktober 2026' (no dashes, human readable)."""
+    try:
+        y, m, dd = str(d).split("-")
+        return f"{int(dd)} {BULAN[int(m)]} {y}"
+    except (ValueError, AttributeError, IndexError):
+        return d or ""
+
 def rating_stats(c, slug, ip):
     row = c.execute("SELECT AVG(stars), COUNT(*) FROM ratings WHERE slug=?", (slug,)).fetchone()
     mine = c.execute("SELECT stars FROM ratings WHERE slug=? AND ip=?", (slug, ip)).fetchone()
     avg = round(row[0], 1) if row[0] else 0
     return avg, row[1], (mine[0] if mine else 0)
+
+def rating_map():
+    c = db()
+    rows = c.execute("SELECT slug, AVG(stars), COUNT(*) FROM ratings GROUP BY slug").fetchall()
+    c.close()
+    return {s: (round(a, 1), n) for s, a, n in rows}
 
 def load_posts():
     posts = []
@@ -137,36 +156,48 @@ def get_post(slug):
     return None
 
 def shell(title, body_html):
+    t = f"{html.escape(title)} · Peka AI Blog" if title != "Arsip" else "Peka AI Blog · info AI & bansos harian"
     return f"""<!doctype html><html lang="id"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{html.escape(title)} — Peka AI Blog</title>
+<meta name="theme-color" content="#f3f3f0">
+<meta name="description" content="Arsip tulisan Peka AI: info AI terbaru, tools, project, dan info bansos.">
+<link rel="icon" href="/static/favicon.ico" sizes="48x48">
+<link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
+<link rel="icon" type="image/png" sizes="96x96" href="/static/favicon-96.png">
+<link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+<title>{t}</title>
 <style>{CSS}</style></head><body>
 <nav class="nav"><div class="frame"><div class="nav-inner">
 <a class="brand" href="/"><img class="logo" src="/static/logo.png" alt="Logo Peka AI">peka.ai.id <span class="muted mono">/ blog</span></a>
 <div class="nav-links"><a class="hide-m" href="https://www.instagram.com/peka.ai.id">Instagram</a><a class="hide-m" href="https://www.threads.com/@peka.ai.id">Threads</a><a class="btn-site" href="https://peka.ai.id">Website resmi</a></div>
 </div></div></nav>
 <div class="frame">{body_html}
-<footer class="footer"><span class="mono">peka.ai.id — blog</span><span class="mono muted">info ai &amp; bansos, dikurasi tiap hari</span></footer>
+<footer class="footer"><span class="mono">peka.ai.id / blog</span><span class="mono muted">info ai &amp; bansos, dikurasi tiap hari</span></footer>
 </div></body></html>"""
 
 @app.route("/")
 def index():
     posts = load_posts()
+    rmap = rating_map()
     rows = []
     for i, p in enumerate(posts, 1):
         img = ""
         if FILE_RE.match(p.get("image", "")):
             img = f'<img class="pthumb" src="/covers/{p["image"]}" alt="" loading="lazy">'
+        meta = fmt_date(p.get("date", ""))
+        if p["slug"] in rmap:
+            avg, n = rmap[p["slug"]]
+            meta += f" · {avg}/5 ({n} penilaian)"
         rows.append(f"""<a class="postrow" href="/p/{p['slug']}">
 <span class="pnum">{i:02d}</span>
-<span><span class="mono muted" style="display:block;margin-bottom:6px">{html.escape(p.get('date',''))}</span>
+<span><span class="mono muted" style="display:block;margin-bottom:6px">{html.escape(meta)}</span>
 <span class="ptitle">{html.escape(p.get('title',''))}</span>
 <span class="pexcerpt">{html.escape(p.get('excerpt',''))}</span></span>
 {img}</a>""")
     body = f"""<section class="block">
-<p class="mono eyebrow"><span class="tick"></span><span>peka.ai.id — blog</span></p>
+<p class="mono eyebrow"><span class="tick"></span><span>peka.ai.id / blog</span></p>
 <h1>Sinyal AI,<br>dikutip <span style="background:var(--accent);padding:0 .1em">peka</span>.</h1>
-<p class="lead">Arsip setiap postingan Peka AI: info AI terbaru, tools, project, dan info bansos. Sama dengan yang tayang di Instagram dan Threads — di sini versi lengkapnya, plus kolom komentar.</p>
+<p class="lead">Arsip setiap postingan Peka AI: info AI terbaru, tools, project, dan info bansos. Sama dengan yang tayang di Instagram dan Threads. Di sini versi lengkapnya, plus kolom komentar.</p>
 </section>
 <section class="block"><p class="mono muted" style="margin-bottom:8px">arsip / {len(posts)} tulisan</p>
 {''.join(rows) if rows else '<p class="muted">Belum ada tulisan.</p>'}</section>"""
@@ -196,7 +227,8 @@ def post(slug):
         f'<span class="cmt-date">{html.escape(d)}</span></div><p>{html.escape(b)}</p></div>'
         for n, b, d in cmts) or '<p class="muted">Belum ada komentar. Jadi yang pertama.</p>'
     body = f"""<section class="block">
-<p class="mono eyebrow"><span class="tick"></span><span>{html.escape(p.get('date',''))} — peka.ai.id</span></p>
+<a class="mono back" href="/">← arsip</a>
+<p class="mono eyebrow"><span class="tick"></span><span>{html.escape(fmt_date(p.get('date','')))}</span></p>
 <h1 style="max-width:20ch">{html.escape(p.get('title',''))}</h1>
 {img}
 <div class="body">{p.get('body_html','')}</div>
@@ -224,7 +256,7 @@ def cover(filename):
 STAR_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.95 6.26 6.55.72-4.9 4.55 1.35 6.47L12 17.4l-5.95 3.1 1.35-6.47-4.9-4.55 6.55-.72z"/></svg>'
 
 def rating_block(slug, avg, count, mine):
-    info = f"{avg} / 5 — {count} penilaian" if count else "belum ada penilaian"
+    info = f"{avg} dari 5 · {count} penilaian" if count else "belum ada penilaian"
     btns = "".join(
         f'<button type="button" data-stars="{i}" class="{"on" if i <= mine else ""}" aria-label="{i} bintang">{STAR_SVG}</button>'
         for i in range(1, 6))
@@ -238,7 +270,7 @@ stars.addEventListener('click',function(e){{var b=e.target.closest('button');if(
 var v=+b.dataset.stars;stars.querySelectorAll('button').forEach(function(x){{x.disabled=true;}});
 fetch('/api/rate',{{method:'POST',headers:{{'Content-Type':'application/x-www-form-urlencoded'}},body:'slug='+encodeURIComponent(slug)+'&stars='+v}})
 .then(function(r){{return r.json();}}).then(function(d){{
-if(d.ok){{paint(d.mine);info.textContent=d.avg+' / 5 — '+d.count+' penilaian';}}
+if(d.ok){{paint(d.mine);info.textContent=d.avg+' dari 5 · '+d.count+' penilaian';}}
 stars.querySelectorAll('button').forEach(function(x){{x.disabled=false;}});}})
 .catch(function(){{stars.querySelectorAll('button').forEach(function(x){{x.disabled=false;}});}});}});}})();</script>"""
 
