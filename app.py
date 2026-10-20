@@ -74,10 +74,10 @@ a{color:inherit}
 .slider{position:relative;border:1px solid var(--line);border-radius:var(--radius);margin:28px 0;background:#fff;overflow:hidden}
 .strack{display:flex;transition:transform .38s ease}
 .strack img{flex:0 0 100%;width:100%;height:auto;display:block}
-.sbtn{position:absolute;top:50%;transform:translateY(-50%);width:46px;height:46px;border:1px solid var(--fg);background:var(--accent);color:var(--fg);font-size:1.3rem;line-height:1;cursor:pointer;border-radius:var(--radius);display:flex;align-items:center;justify-content:center;z-index:2;padding:0}
-.sbtn.prev{left:12px}
-.sbtn.next{right:12px}
-.sbtn:hover{background:var(--fg);color:var(--accent)}
+.sbtn{position:absolute;top:50%;transform:translateY(-50%);background:none;border:0;color:#fff;font-size:2.6rem;line-height:1;cursor:pointer;padding:10px 14px;text-shadow:0 1px 6px rgba(0,0,0,.55);z-index:2}
+.sbtn.prev{left:2px}
+.sbtn.next{right:2px}
+.sbtn:hover{opacity:.75}
 .scounter{position:absolute;top:12px;right:12px;background:var(--fg);color:#fff;font-family:var(--mono);font-size:.72rem;padding:5px 10px;border-radius:var(--radius);z-index:2}
 .sdots{position:absolute;left:0;right:0;bottom:12px;display:flex;gap:7px;justify-content:center;z-index:2}
 .sdots button{width:11px;height:11px;border-radius:50%;border:1px solid var(--fg);background:#fff;padding:0;cursor:pointer}
