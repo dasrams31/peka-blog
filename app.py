@@ -70,7 +70,18 @@ a{color:inherit}
 .ptitle{display:block;font-size:1.5rem;letter-spacing:-0.03em;font-weight:500;margin:6px 0}
 .pexcerpt{display:block;color:var(--muted);font-size:.95rem}
 .pthumb{width:200px;height:120px;object-fit:cover;border:1px solid var(--line);border-radius:var(--radius);background:#fff}
-.cover{width:100%;aspect-ratio:16/9;max-height:360px;object-fit:cover;border:1px solid var(--line);border-radius:var(--radius);margin:28px 0;background:#fff}
+.cover{width:100%;height:auto;display:block;border:1px solid var(--line);border-radius:var(--radius);margin:28px 0;background:#fff}
+.slider{position:relative;border:1px solid var(--line);border-radius:var(--radius);margin:28px 0;background:#fff;overflow:hidden}
+.strack{display:flex;transition:transform .38s ease}
+.strack img{flex:0 0 100%;width:100%;height:auto;display:block}
+.sbtn{position:absolute;top:50%;transform:translateY(-50%);width:46px;height:46px;border:1px solid var(--fg);background:var(--accent);color:var(--fg);font-size:1.3rem;line-height:1;cursor:pointer;border-radius:var(--radius);display:flex;align-items:center;justify-content:center;z-index:2;padding:0}
+.sbtn.prev{left:12px}
+.sbtn.next{right:12px}
+.sbtn:hover{background:var(--fg);color:var(--accent)}
+.scounter{position:absolute;top:12px;right:12px;background:var(--fg);color:#fff;font-family:var(--mono);font-size:.72rem;padding:5px 10px;border-radius:var(--radius);z-index:2}
+.sdots{position:absolute;left:0;right:0;bottom:12px;display:flex;gap:7px;justify-content:center;z-index:2}
+.sdots button{width:11px;height:11px;border-radius:50%;border:1px solid var(--fg);background:#fff;padding:0;cursor:pointer}
+.sdots button.on{background:var(--accent)}
 .body{font-size:1.08rem;max-width:68ch}
 .body p{margin-bottom:1.1em}
 .links-row{display:flex;flex-wrap:wrap;gap:12px;margin-top:28px}
@@ -192,6 +203,40 @@ def cover_img(p, cls):
     if FILE_RE.match(img):
         return f'<img class="{cls}" src="/covers/{img}" alt="{html.escape(p.get("title", ""))}" loading="lazy">'
     return ""
+
+def gallery(p):
+    """Post header media: slider when the post JSON carries images[], else the
+    single cover. Images render full-width at natural aspect (never cropped)."""
+    imgs = p.get("images")
+    if not isinstance(imgs, list):
+        imgs = []
+    imgs = [i for i in imgs if isinstance(i, str) and FILE_RE.match(i)]
+    main = p.get("image", "")
+    if main and FILE_RE.match(main) and main not in imgs:
+        imgs.insert(0, main)
+    if len(imgs) <= 1:
+        return cover_img(p, "cover")
+    title = html.escape(p.get("title", ""))
+    slides = "".join(f'<img src="/covers/{i}" alt="{title}" loading="lazy">' for i in imgs)
+    dots = "".join(
+        f'<button type="button" aria-label="Gambar {k + 1}" class="{"on" if k == 0 else ""}"></button>'
+        for k in range(len(imgs)))
+    return f"""<div class="slider"><div class="strack">{slides}</div>
+<button type="button" class="sbtn prev" aria-label="Gambar sebelumnya">&#8249;</button>
+<button type="button" class="sbtn next" aria-label="Gambar berikutnya">&#8250;</button>
+<span class="scounter">1 / {len(imgs)}</span>
+<div class="sdots">{dots}</div></div>
+<script>(function(){{var s=document.querySelector('.slider');if(!s)return;
+var track=s.querySelector('.strack'),n=track.children.length,i=0;
+var cnt=s.querySelector('.scounter'),dots=s.querySelectorAll('.sdots button');
+function go(j){{i=(j+n)%n;track.style.transform='translateX(-'+(i*100)+'%)';cnt.textContent=(i+1)+' / '+n;dots.forEach(function(d,k){{d.classList.toggle('on',k===i);}});}}
+s.querySelector('.prev').addEventListener('click',function(){{go(i-1);}});
+s.querySelector('.next').addEventListener('click',function(){{go(i+1);}});
+dots.forEach(function(d,k){{d.addEventListener('click',function(){{go(k);}});}});
+var sx=null;s.addEventListener('touchstart',function(e){{sx=e.touches[0].clientX;}},{{passive:true}});
+s.addEventListener('touchend',function(e){{if(sx===null)return;var dx=e.changedTouches[0].clientX-sx;if(Math.abs(dx)>42)go(i+(dx<0?1:-1));sx=null;}},{{passive:true}});
+document.addEventListener('keydown',function(e){{if(e.key==='ArrowLeft')go(i-1);if(e.key==='ArrowRight')go(i+1);}});
+}})();</script>"""
 
 def load_posts():
     posts = []
@@ -408,7 +453,7 @@ def post(slug):
 {trow}
 <h1 style="max-width:20ch">{html.escape(title)}</h1>
 <p class="byline"><img src="/static/logo.png" alt="Peka AI"><span class="mono">Peka AI · <time datetime="{iso}">{html.escape(fmt_date(p.get('date', '')))}</time> · {reading_time(p)} menit baca</span></p>
-{cover_img(p, "cover")}
+{gallery(p)}
 <div class="body">{p.get('body_html','')}</div>
 <div class="links-row"><span class="mono muted" style="align-self:center">tayang juga di:</span>{''.join(links)}</div>
 {sh}
