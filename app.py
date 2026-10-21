@@ -328,7 +328,7 @@ def shell(title, body_html, head_extra=""):
 <div class="nav-links"><a class="hide-m" href="https://www.instagram.com/peka.ai.id">Instagram</a><a class="hide-m" href="https://www.threads.com/@peka.ai.id">Threads</a><a class="btn-site" href="https://peka.ai.id">Website resmi</a></div>
 </div></div></nav>
 <div class="frame">{body_html}
-<footer class="footer"><span class="mono">peka.ai.id / blog</span><span class="mono muted">info ai &amp; bansos, dikurasi tiap hari</span></footer>
+<footer class="footer"><span class="mono">peka.ai.id / blog</span><span class="mono"><a href="https://url.peka.ai.id" target="_blank" rel="noopener">semua link resmi: url.peka.ai.id</a></span><span class="mono muted">info ai &amp; bansos, dikurasi tiap hari</span></footer>
 </div></body></html>"""
 
 @app.route("/")
