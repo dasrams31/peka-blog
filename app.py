@@ -136,6 +136,45 @@ textarea{min-height:120px;resize:vertical}
   .nav-links{gap:14px}
   .brand{font-size:.95rem}
 }
+#progress{position:fixed;top:0;left:0;height:3px;width:0;background:var(--accent);z-index:200}
+.toc{border:1px solid var(--line);border-radius:var(--radius);background:#fff;padding:18px 22px;margin:26px 0;max-width:68ch}
+.toc p{margin:0 0 10px}
+.toc ol{margin:0;padding-left:20px}
+.toc li{margin:5px 0}
+.toc a{text-decoration:none;color:var(--muted)}
+.toc a:hover{color:var(--fg);text-decoration:underline;text-underline-offset:3px}
+.toc a.on{color:var(--fg);font-weight:600}
+.body h2,.body h3{scroll-margin-top:84px}
+.body code{font-family:var(--mono);font-size:.86em;background:#e7e7e1;border:1px solid var(--line);border-radius:var(--radius);padding:.08em .35em}
+.term{background:#111;border:1px solid #111;border-radius:6px;margin:22px 0;overflow:hidden;max-width:68ch}
+.term-bar{display:flex;align-items:center;gap:10px;background:#1c1c1c;padding:9px 12px;border-bottom:1px solid #2c2c2c}
+.tdots{display:inline-flex;gap:7px}
+.tdots i{width:11px;height:11px;border-radius:50%;display:block}
+.tdots i:nth-child(1){background:#ff5f57}
+.tdots i:nth-child(2){background:#febc2e}
+.tdots i:nth-child(3){background:#28c840}
+.tlabel{font-family:var(--mono);font-size:.72rem;color:#9a9a94;text-transform:uppercase;letter-spacing:.05em}
+.tcopy{margin-left:auto;font-family:var(--mono);font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;background:var(--accent);color:#111;border:1px solid var(--accent);border-radius:var(--radius);padding:5px 12px;cursor:pointer}
+.tcopy:hover{background:transparent;color:var(--accent)}
+.term pre{margin:0;padding:18px 20px;overflow-x:auto;background:#111}
+.term pre code{font-family:var(--mono);font-size:.9rem;line-height:1.6;color:#e8e8e8;background:none;border:0;padding:0;white-space:pre}
+.search{display:flex;gap:10px;margin:0 0 18px;max-width:560px}
+.search input{flex:1}
+.search button{white-space:nowrap}
+#toTop{position:fixed;right:18px;bottom:18px;width:44px;height:44px;display:none;align-items:center;justify-content:center;background:var(--accent);color:#111;border:1px solid #111;border-radius:var(--radius);font-size:1.15rem;cursor:pointer;z-index:150}
+#toTop.show{display:flex}
+.lightbox{position:fixed;inset:0;background:rgba(10,10,10,.92);display:none;align-items:center;justify-content:center;z-index:300;cursor:zoom-out;padding:24px}
+.lightbox.open{display:flex}
+.lightbox img{max-width:100%;max-height:100%;border:1px solid #333}
+.body img{cursor:zoom-in}
+#themebtn{background:none;border:1px solid var(--line);border-radius:var(--radius);color:var(--muted);font-family:var(--mono);font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;padding:8px 12px;cursor:pointer}
+#themebtn:hover{color:var(--fg);border-color:var(--fg)}
+:root[data-theme="dark"]{--bg:#131311;--fg:#f0f0ec;--muted:#a3a3a0;--line:#2e2e2c}
+:root[data-theme="dark"] .cmt,:root[data-theme="dark"] .rate,:root[data-theme="dark"] .toc,:root[data-theme="dark"] .pnnav a{background:#1b1b19}
+:root[data-theme="dark"] input,:root[data-theme="dark"] textarea{background:#1b1b19;color:var(--fg);border-color:var(--muted)}
+:root[data-theme="dark"] .body code{background:#26261f}
+:root[data-theme="dark"] .pthumb,:root[data-theme="dark"] .cover,:root[data-theme="dark"] .slider,:root[data-theme="dark"] .featured img{background:#1b1b19}
+:root[data-theme="dark"] .brand .logo{background:#f3f3f0}
 """
 
 def db():
@@ -238,6 +277,69 @@ s.addEventListener('touchend',function(e){{if(sx===null)return;var dx=e.changedT
 document.addEventListener('keydown',function(e){{if(e.key==='ArrowLeft')go(i-1);if(e.key==='ArrowRight')go(i+1);}});
 }})();</script>"""
 
+PRE_RE = re.compile(r"<pre([^>]*)>(.*?)</pre>", re.S | re.I)
+CODE_RE = re.compile(r"^<code([^>]*)>(.*)</code>$", re.S | re.I)
+HEAD_RE = re.compile(r"<h([23])(\s[^>]*)?>(.*?)</h\1>", re.S | re.I)
+
+
+def _term(m):
+    """Wrap one <pre> block in terminal chrome: window bar, language label,
+    copy button (wired up in /static/blog.js)."""
+    attrs, inner = m.group(1) or "", m.group(2).strip()
+    lang = ""
+    lm = re.search(r'data-lang="([\w-]+)"', attrs) or re.search(r"language-([\w-]+)", attrs)
+    if lm:
+        lang = lm.group(1)
+    cm = CODE_RE.match(inner)
+    if cm:
+        lm2 = re.search(r"language-([\w-]+)", cm.group(1))
+        if lm2:
+            lang = lm2.group(1)
+        code = cm.group(2)
+    else:
+        code = inner
+    label = html.escape(lang) if lang else "terminal"
+    cls = f' class="language-{html.escape(lang)}"' if lang else ""
+    return (f'<div class="term"><div class="term-bar"><span class="tdots"><i></i><i></i><i></i></span>'
+            f'<span class="tlabel">{label}</span>'
+            f'<button type="button" class="tcopy">salin</button></div>'
+            f"<pre><code{cls}>{code}</code></pre></div>")
+
+
+def enhance_body(raw):
+    """Server-side article enhancements: heading ids + table of contents,
+    terminal-style code blocks. Returns (html, toc_html)."""
+    toc = []
+    seen = {}
+
+    def _head(m):
+        lvl, attrs, inner = m.group(1), m.group(2) or "", m.group(3)
+        text = re.sub(r"<[^>]+>", "", inner).strip()
+        if not text:
+            return m.group(0)
+        im = re.search(r'id="([^"]+)"', attrs)
+        if im:
+            hid = im.group(1)
+        else:
+            base = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")[:48] or "bagian"
+            seen[base] = seen.get(base, 0) + 1
+            hid = base if seen[base] == 1 else f"{base}-{seen[base]}"
+            attrs = attrs + f' id="{hid}"'
+        toc.append((int(lvl), hid, text))
+        return f"<h{lvl}{attrs}>{inner}</h{lvl}>"
+
+    out = HEAD_RE.sub(_head, raw)
+    out = PRE_RE.sub(_term, out)
+    toc_html = ""
+    if len(toc) >= 3:
+        items = "".join(
+            f'<li style="margin-left:{(lvl - 2) * 16}px"><a href="#{hid}" data-toc="{hid}">{html.escape(text)}</a></li>'
+            for lvl, hid, text in toc)
+        toc_html = (f'<nav class="toc"><p class="mono muted">daftar isi</p>'
+                    f"<ol>{items}</ol></nav>")
+    return out, toc_html
+
+
 def load_posts():
     posts = []
     if not os.path.isdir(BLOG_DIR):
@@ -316,6 +418,8 @@ def shell(title, body_html, head_extra=""):
     return f"""<!doctype html><html lang="id"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#f3f3f0">
+<script>try{{var t=localStorage.getItem("peka-theme");if(t)document.documentElement.setAttribute("data-theme",t);}}catch(e){{}}</script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
 <link rel="icon" href="/static/favicon.ico" sizes="48x48">
 <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
 <link rel="icon" type="image/png" sizes="96x96" href="/static/favicon-96.png">
@@ -323,13 +427,19 @@ def shell(title, body_html, head_extra=""):
 <title>{t}</title>
 {head_extra}
 <style>{CSS}</style></head><body>
+<div id="progress"></div>
 <nav class="nav"><div class="frame"><div class="nav-inner">
 <a class="brand" href="/"><img class="logo" src="/static/logo.png" alt="Logo Peka AI">peka.ai.id <span class="muted mono">/ blog</span></a>
-<div class="nav-links"><a class="hide-m" href="https://www.instagram.com/peka.ai.id">Instagram</a><a class="hide-m" href="https://www.threads.com/@peka.ai.id">Threads</a><a class="btn-site" href="https://peka.ai.id">Website resmi</a></div>
+<div class="nav-links"><a class="hide-m" href="https://www.instagram.com/peka.ai.id">Instagram</a><a class="hide-m" href="https://www.threads.com/@peka.ai.id">Threads</a><button id="themebtn" type="button">gelap</button><a class="btn-site" href="https://peka.ai.id">Website resmi</a></div>
 </div></div></nav>
 <div class="frame">{body_html}
 <footer class="footer"><span class="mono">peka.ai.id / blog</span><span class="mono"><a href="https://url.peka.ai.id" target="_blank" rel="noopener">semua link resmi: url.peka.ai.id</a></span><span class="mono muted">info ai &amp; bansos, dikurasi tiap hari</span></footer>
-</div></body></html>"""
+</div>
+<div class="lightbox" id="lightbox"><img alt="Gambar diperbesar"></div>
+<button id="toTop" type="button" aria-label="Kembali ke atas">&#8593;</button>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js" defer></script>
+<script src="/static/blog.js" defer></script>
+</body></html>"""
 
 @app.route("/")
 def index():
@@ -340,6 +450,17 @@ def index():
     if active not in tags:
         active = ""
     shown = [p for p in posts if active in post_tags(p)] if active else posts
+    q = request.args.get("q", "").strip()
+    if q:
+        ql = q.lower()
+
+        def _hit(p):
+            text = re.sub(r"<[^>]+>", " ", p.get("body_html", ""))
+            blob = " ".join([p.get("title", ""), p.get("excerpt", ""),
+                             " ".join(post_tags(p)), text]).lower()
+            return ql in blob
+
+        shown = [p for p in shown if _hit(p)]
 
     frow = '<div class="tagfilter"><span class="mono muted" style="align-self:center">topik:</span>'
     frow += f'<a class="tag{" ghost" if active else ""}" href="/">Semua</a>'
@@ -349,7 +470,7 @@ def index():
 
     feat = ""
     rest = shown
-    if not active and shown:
+    if not active and not q and shown:
         f = shown[0]
         rest = shown[1:]
         feat = f"""<a class="featured" href="/p/{f['slug']}">{cover_img(f, "pimg")}
@@ -376,12 +497,18 @@ def index():
     nline = f"arsip / {len(shown)} tulisan"
     if active:
         nline += f" · topik {active}"
+    if q:
+        nline += f" · cari: {q}"
+    search = (f'<form class="search" method="get" action="/">'
+              f'<input type="search" name="q" value="{html.escape(q)}" '
+              f'placeholder="Cari tulisan, topik, atau kata kunci..." aria-label="Cari tulisan">'
+              f'<button class="btn" type="submit">Cari</button></form>')
     body = f"""<section class="block">
 <p class="mono eyebrow"><span class="tick"></span><span>peka.ai.id / blog</span></p>
 <h1>Sinyal AI,<br>dikutip <span style="background:var(--accent);padding:0 .1em">peka</span>.</h1>
 <p class="lead">Arsip setiap postingan Peka AI: info AI terbaru, tools, project, dan info bansos. Sama dengan yang tayang di Instagram dan Threads. Di sini versi lengkapnya, plus kolom komentar.</p>
 </section>
-<section class="block">{frow}
+<section class="block">{search}{frow}
 <p class="mono muted" style="margin:10px 0 8px">{html.escape(nline)}</p>
 {feat}
 {''.join(rows) if rows else '<p class="muted">Belum ada tulisan di topik ini.</p>'}</section>"""
@@ -448,13 +575,15 @@ def post(slug):
         f'<div class="cmt"><div class="cmt-head"><span class="cmt-name">{html.escape(n)}</span>'
         f'<span class="cmt-date">{html.escape(d)}</span></div><p>{html.escape(b)}</p></div>'
         for n, b, d in cmts) or '<p class="muted">Belum ada komentar. Jadi yang pertama.</p>'
+    enhanced, toc_html = enhance_body(p.get("body_html", ""))
     body = f"""<article class="block">
 <a class="mono back" href="/">← arsip</a>
 {trow}
 <h1 style="max-width:20ch">{html.escape(title)}</h1>
 <p class="byline"><img src="/static/logo.png" alt="Peka AI"><span class="mono">Peka AI · <time datetime="{iso}">{html.escape(fmt_date(p.get('date', '')))}</time> · {reading_time(p)} menit baca</span></p>
 {gallery(p)}
-<div class="body">{p.get('body_html','')}</div>
+{toc_html}
+<div class="body">{enhanced}</div>
 <div class="links-row"><span class="mono muted" style="align-self:center">tayang juga di:</span>{''.join(links)}</div>
 {sh}
 {rating_block(slug, rav, rcount, mine)}
