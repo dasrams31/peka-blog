@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Peka AI blog — blog.peka.ai.id. Spec-sheet aesthetic mirroring peka.ai.id."""
+import hashlib
 import html
 import json
 import os
@@ -25,6 +26,7 @@ BASE = os.path.dirname(os.path.abspath(__file__))
 BLOG_DIR = "/home/hatch/workspace/peka-content/blog"
 IMG_DIR = "/home/hatch/workspace/peka-content/images"
 DB = os.path.join(BASE, "comments.db")
+VIEWS_DB = os.path.join(BASE, "views.db")
 
 app = Flask(__name__)
 
@@ -187,6 +189,54 @@ def db():
       slug TEXT NOT NULL, ip TEXT NOT NULL, stars INTEGER NOT NULL,
       created_at TEXT NOT NULL, PRIMARY KEY (slug, ip))""")
     return c
+
+def views_db():
+    """View counter DB, mirroring blog.ramadanadipa.com: unique visitors
+    per day per article. IPs are stored only as SHA-256 hashes, never raw."""
+    c = sqlite3.connect(VIEWS_DB, timeout=10)
+    c.execute("PRAGMA journal_mode=WAL")
+    c.execute("""CREATE TABLE IF NOT EXISTS views(
+        slug TEXT PRIMARY KEY, count INTEGER NOT NULL DEFAULT 0)""")
+    c.execute("""CREATE TABLE IF NOT EXISTS hits(
+        slug TEXT, ip_hash TEXT, day TEXT,
+        PRIMARY KEY (slug, ip_hash, day))""")
+    return c
+
+def record_hit(slug, ip):
+    if not SLUG_RE.match(slug) or not get_post(slug):
+        return None
+    ip_hash = hashlib.sha256(ip.encode()).hexdigest()[:32]
+    today = datetime.now(WIB).strftime("%Y-%m-%d")
+    c = views_db()
+    try:
+        cur = c.execute(
+            "INSERT OR IGNORE INTO hits(slug, ip_hash, day) VALUES (?,?,?)",
+            (slug, ip_hash, today))
+        if cur.rowcount:
+            c.execute(
+                "INSERT INTO views(slug, count) VALUES (?,1) "
+                "ON CONFLICT(slug) DO UPDATE SET count = count + 1",
+                (slug,))
+            c.commit()
+        row = c.execute("SELECT count FROM views WHERE slug=?", (slug,)).fetchone()
+        return row[0] if row else 0
+    finally:
+        c.close()
+
+def get_views(slugs):
+    clean = [s for s in slugs if SLUG_RE.match(s)][:50]
+    if not clean:
+        return {}
+    c = views_db()
+    try:
+        rows = c.execute(
+            f"SELECT slug, count FROM views WHERE slug IN ({','.join('?' * len(clean))})",
+            clean).fetchall()
+        out = {s: 0 for s in clean}
+        out.update({s: n for s, n in rows})
+        return out
+    finally:
+        c.close()
 
 def client_ip():
     return request.headers.get("X-Forwarded-For", request.remote_addr or "").split(",")[0].strip()
@@ -474,17 +524,19 @@ def index():
         f = shown[0]
         rest = shown[1:]
         feat = f"""<a class="featured" href="/p/{f['slug']}">{cover_img(f, "pimg")}
-<span><span class="mono muted" style="display:block;margin-bottom:8px">sorotan · {html.escape(fmt_date(f.get('date', '')))}</span>
+<span><span class="mono muted" style="display:block;margin-bottom:8px">sorotan · {html.escape(fmt_date(f.get('date', '')))} · {get_views([f['slug']]).get(f['slug'], 0)} views</span>
 <span class="ptitle">{html.escape(f.get('title', ''))}</span>
 <span class="pexcerpt" style="display:block;margin-top:10px">{html.escape(f.get('excerpt', ''))}</span></span></a>"""
 
     rows = []
     start = 2 if feat else 1
+    vmap = get_views([p["slug"] for p in rest])
     for i, p in enumerate(rest, start):
         meta = fmt_date(p.get("date", ""))
         if p["slug"] in rmap:
             avg, n = rmap[p["slug"]]
             meta += f" · {avg}/5 ({n} penilaian)"
+        meta += f" · {vmap.get(p['slug'], 0)} views"
         trow = "".join(f'<span class="tag ghost" style="font-size:.62rem;padding:4px 8px">{html.escape(t)}</span>'
                        for t in post_tags(p))
         rows.append(f"""<a class="postrow" href="/p/{p['slug']}">
@@ -567,6 +619,7 @@ def post(slug):
 {cover_img(x, "pthumb")}</a>""" for x in others) + "</div>")
 
     ip = client_ip()
+    views = get_views([slug]).get(slug, 0)
     c = db()
     rav, rcount, mine = rating_stats(c, slug, ip)
     cmts = c.execute("SELECT name, body, created_at FROM comments WHERE slug=? ORDER BY id ASC", (slug,)).fetchall()
@@ -580,7 +633,8 @@ def post(slug):
 <a class="mono back" href="/">← arsip</a>
 {trow}
 <h1 style="max-width:20ch">{html.escape(title)}</h1>
-<p class="byline"><img src="/static/logo.png" alt="Peka AI"><span class="mono">Peka AI · <time datetime="{iso}">{html.escape(fmt_date(p.get('date', '')))}</time> · {reading_time(p)} menit baca</span></p>
+<p class="byline"><img src="/static/logo.png" alt="Peka AI"><span class="mono">Peka AI · <time datetime="{iso}">{html.escape(fmt_date(p.get('date', '')))}</time> · {reading_time(p)} menit baca · <span id="view-count">{views}</span> views</span></p>
+<script>(function(){{fetch('/api/hit',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{slug:'{slug}'}})}}).then(function(r){{return r.json();}}).then(function(d){{var el=document.getElementById('view-count');if(el&&d.views!==undefined)el.textContent=d.views;}}).catch(function(){{}});}})();</script>
 {gallery(p)}
 {toc_html}
 <div class="body">{enhanced}</div>
@@ -628,6 +682,19 @@ fetch('/api/rate',{{method:'POST',headers:{{'Content-Type':'application/x-www-fo
 if(d.ok){{paint(d.mine);info.textContent=d.avg+' dari 5 · '+d.count+' penilaian';}}
 stars.querySelectorAll('button').forEach(function(x){{x.disabled=false;}});}})
 .catch(function(){{stars.querySelectorAll('button').forEach(function(x){{x.disabled=false;}});}});}});}})();</script>"""
+
+@app.route("/api/hit", methods=["POST"])
+def hit():
+    data = request.get_json(silent=True) or {}
+    views = record_hit(str(data.get("slug", "")), client_ip())
+    if views is None:
+        abort(400)
+    return {"views": views}
+
+@app.route("/api/views")
+def views_api():
+    slugs = request.args.get("slug", "").split(",")
+    return get_views(slugs)
 
 @app.route("/api/rate", methods=["POST"])
 def rate():
@@ -717,4 +784,5 @@ def healthz():
 if __name__ == "__main__":
     os.makedirs(BLOG_DIR, exist_ok=True)
     db().close()
+    views_db().close()
     app.run(host="127.0.0.1", port=18102)
