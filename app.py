@@ -618,6 +618,65 @@ PREMIBOT_SLIDEIN = """<style>
 </script>"""
 
 
+COMMUNITY_MODAL = """     Muncul di tengah layar sekali per sesi (5 detik setelah load), ditutup via X / Esc / klik backdrop. -->
+<style>
+.community-overlay{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(17,17,17,.55);opacity:0;visibility:hidden;transition:opacity .25s ease,visibility 0s linear .25s}
+.community-overlay.open{opacity:1;visibility:visible;transition:opacity .25s ease}
+.community-panel{position:relative;width:min(100%,440px);background:#fff;color:#111;border:2.5px solid #111;border-radius:16px;box-shadow:8px 8px 0 #111;padding:28px 26px 24px;text-align:center;transform:translateY(12px) scale(.98);transition:transform .25s ease}
+.community-overlay.open .community-panel{transform:translateY(0) scale(1)}
+.community-close{position:absolute;top:12px;right:12px;width:36px;height:36px;display:grid;place-items:center;background:#fff;border:2.5px solid #111;border-radius:12px;font-size:19px;font-weight:800;line-height:1;color:#111;cursor:pointer}
+.community-close:active{transform:translate(2px,2px)}
+.community-tile{width:56px;height:56px;margin:0 auto 16px;background:#ffd60a;border:2.5px solid #111;border-radius:14px;display:flex;align-items:center;justify-content:center}
+.community-tile svg{width:28px;height:28px;fill:#111}
+.community-eyebrow{font-size:11.5px;font-weight:800;letter-spacing:.22em;opacity:.6;margin-bottom:8px}
+.community-panel h3{font-size:24px;font-weight:800;letter-spacing:-.02em;line-height:1.2;margin:0 0 10px}
+.community-body{font-size:15px;font-weight:500;line-height:1.55;opacity:.75;margin:0 0 20px}
+.community-btn{display:flex;align-items:center;justify-content:center;gap:10px;border-radius:14px;padding:14px 16px;margin-bottom:12px;font-size:16px;font-weight:800;text-decoration:none;color:#fff}
+.community-btn.wa{background:#25d366}
+.community-btn.tg{background:#229ed9}
+.community-btn:active{transform:translate(2px,2px)}
+.community-btn svg{width:20px;height:20px;fill:#fff}
+.community-note{font-size:12.5px;font-weight:600;opacity:.55;margin:0}
+</style>
+<div class="community-overlay" id="community-overlay" role="dialog" aria-modal="true" aria-label="Gabung Komunitas Peka AI" aria-hidden="true">
+  <div class="community-panel">
+    <button class="community-close" id="community-close" type="button" aria-label="Tutup">&times;</button>
+    <span class="community-tile" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3 1.34 3 3 3Zm-8 0c1.66 0 3-1.34 3-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3Zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5C15 14.17 10.33 13 8 13Zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5Z"/></svg></span>
+    <p class="community-eyebrow">KOMUNITAS PEKA AI</p>
+    <h3>Gabung Komunitas Peka AI</h3>
+    <p class="community-body">Info AI terbaru, bansos, dan diskusi seputar AI. Info naik duluan di grup, sebelum naik ke feed.</p>
+    <a class="community-btn wa" href="https://chat.whatsapp.com/GLRMuZBICZg2636lVPj6NL" target="_blank" rel="noopener"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm5.2 14.2c-.2.6-1.3 1.2-1.8 1.2-.5.1-1 .2-3.4-.7-2.9-1.2-4.7-4.1-4.9-4.3-.1-.2-1.1-1.5-1.1-2.9s.7-2 1-2.3c.2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.9 2.1c.1.2.1.4 0 .6l-.4.6-.4.5c-.1.1-.3.3-.1.6.1.3.7 1.2 1.6 1.9 1.1.9 2 1.2 2.3 1.3.3.1.5.1.6-.1l1-1.2c.2-.3.4-.2.7-.1l2 1c.3.1.5.2.6.4 0 .1 0 .7-.2 1.3Z"/></svg>Gabung Grup WhatsApp</a>
+    <a class="community-btn tg" href="https://t.me/peka_aigroup" target="_blank" rel="noopener"><svg viewBox="0 0 24 24"><path d="M21.9 4.6 18.8 19.2c-.2 1-.8 1.3-1.7.8l-4.7-3.5-2.3 2.2c-.3.3-.5.5-1 .5l.3-4.8 8.7-7.9c.4-.3-.1-.5-.6-.2L6.7 13.1 2.1 11.7c-1-.3-1-1 .2-1.5L20.4 3.2c.8-.3 1.6.2 1.5 1.4Z"/></svg>Gabung Grup Telegram</a>
+    <p class="community-note">Gratis, tanpa daftar. Keluar kapan saja.</p>
+  </div>
+</div>
+<script>
+(function(){
+  var KEY = 'peka-community-seen';
+  var overlay = document.getElementById('community-overlay');
+  var closeBtn = document.getElementById('community-close');
+  function open(){
+    overlay.classList.add('open');
+    overlay.setAttribute('aria-hidden','false');
+    try { sessionStorage.setItem(KEY,'1'); } catch(e){}
+    closeBtn.focus();
+  }
+  function close(){
+    overlay.classList.remove('open');
+    overlay.setAttribute('aria-hidden','true');
+  }
+  closeBtn.addEventListener('click', close);
+  overlay.addEventListener('click', function(e){ if(e.target === overlay) close(); });
+  document.addEventListener('keydown', function(e){ if(e.key === 'Escape') close(); });
+  try {
+    if (!sessionStorage.getItem(KEY)) setTimeout(open, 5000);
+  } catch(e) {
+    setTimeout(open, 5000);
+  }
+})();
+</script>"""
+
+
 def shell(title, body_html, head_extra=""):
     t = f"{html.escape(title)} · Peka AI Blog" if title != "Arsip" else "Peka AI Blog · info AI & bansos harian"
     return f"""<!doctype html><html lang="id"><head><meta charset="utf-8">
@@ -644,7 +703,7 @@ def shell(title, body_html, head_extra=""):
 <button id="toTop" type="button" aria-label="Kembali ke atas">&#8593;</button>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js" defer></script>
 <script src="/static/blog.js" defer></script>
-{CHATBOT_WIDGET}{PREMIBOT_SLIDEIN}</body></html>"""
+{CHATBOT_WIDGET}{PREMIBOT_SLIDEIN}{COMMUNITY_MODAL}</body></html>"""
 
 @app.route("/")
 def index():
