@@ -557,6 +557,139 @@ load();render();
 </script>"""
 
 
+WEBCHAT_WIDGET = """<style>
+.webchat-panel{position:fixed;left:20px;bottom:20px;z-index:90;width:min(calc(100% - 40px),380px);height:min(560px,calc(100vh - 40px));display:flex;flex-direction:column;background:#fff;color:#111;border:1px solid #111;border-radius:2px;box-shadow:8px 8px 0 rgba(17,17,17,.9);transform:translateX(calc(-100% - 40px));visibility:hidden;transition:transform .32s ease,visibility 0s linear .32s;font-family:"Inter Tight","Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}
+.webchat-panel.open{transform:translateX(0);visibility:visible;transition:transform .32s ease}
+.webchat-head{display:flex;align-items:center;gap:12px;padding:16px 16px 12px;border-bottom:1px solid #d6d6d2}
+.webchat-tile{flex:none;width:40px;height:40px;display:grid;place-items:center;background:#ffd60a;border:1px solid #111;border-radius:2px;color:#111}
+.webchat-tile svg{width:22px;height:22px}
+.webchat-head-text{flex:1;min-width:0;display:flex;flex-direction:column}
+.webchat-head-text strong{font-size:1rem;letter-spacing:-.02em}
+.webchat-head-text span{font-size:.75rem;color:#5c5c5a}
+.webchat-close{flex:none;width:36px;height:36px;display:grid;place-items:center;background:transparent;border:1px solid #d6d6d2;border-radius:2px;font-size:1.25rem;line-height:1;color:#111;cursor:pointer}
+.webchat-close:hover{background:#f3f3f0}
+.webchat-list{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding:16px}
+.webchat-msg{max-width:85%;padding:10px 12px;border-radius:2px;font-size:.9375rem;line-height:1.5;white-space:pre-wrap;word-break:break-word}
+.webchat-msg.mine{align-self:flex-end;background:#111;color:#fff}
+.webchat-msg.other{align-self:flex-start;background:#f3f3f0;border:1px solid #d6d6d2}
+.webchat-meta{display:flex;gap:8px;font-size:.75rem;color:#5c5c5a;margin-bottom:3px}
+.webchat-msg.mine .webchat-meta{color:#c9c9c4}
+.webchat-meta b{font-weight:800;color:#111}
+.webchat-msg.mine .webchat-meta b{color:#fff}
+.webchat-note{align-self:center;text-align:center;font-size:.8125rem;color:#5c5c5a;line-height:1.5;padding:2px 8px}
+.webchat-form{display:flex;flex-direction:column;gap:8px;padding:12px 16px 16px;border-top:1px solid #d6d6d2}
+.webchat-form input{width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #111;border-radius:2px;font:inherit;font-size:.9375rem;background:#fff;color:#111}
+.webchat-msgrow{display:flex;gap:8px}
+.webchat-msgrow input{flex:1;min-width:0}
+.webchat-msgrow button[type=submit]{flex:none;width:44px;height:44px;display:grid;place-items:center;background:#111;color:#fff;border:1px solid #111;border-radius:2px;cursor:pointer}
+.webchat-msgrow button[type=submit]:hover:not(:disabled){background:#ffd60a;color:#111}
+.webchat-msgrow button[type=submit]:disabled{opacity:.5;cursor:wait}
+.webchat-msgrow button[type=submit] svg{width:20px;height:20px;fill:currentColor}
+.webchat-fab{position:fixed;left:20px;bottom:84px;z-index:80;width:54px;height:54px;display:grid;place-items:center;background:#ffd60a;color:#111;border:1px solid #111;border-radius:2px;box-shadow:4px 4px 0 rgba(17,17,17,.25);cursor:pointer;transition:opacity .2s ease,visibility 0s}
+.webchat-fab:hover{background:#111;color:#ffd60a}
+.webchat-fab.hidden{opacity:0;visibility:hidden;pointer-events:none}
+.webchat-fab svg{width:26px;height:26px}
+@media(max-width:640px){.webchat-panel{left:14px;bottom:14px;height:min(600px,calc(100vh - 28px))}.webchat-fab{left:14px;bottom:78px}}
+</style>
+<div class="webchat-panel" id="webchat-panel" role="dialog" aria-label="Webchat Peka" aria-hidden="true">
+  <div class="webchat-head">
+    <span class="webchat-tile" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5Z"/></svg></span>
+    <div class="webchat-head-text"><strong>Webchat Peka</strong><span>Ngobrol bareng pengunjung lain</span></div>
+    <button type="button" class="webchat-close" id="webchat-close" aria-label="Tutup webchat" tabindex="-1">&times;</button>
+  </div>
+  <div class="webchat-list" id="webchat-list"></div>
+  <form class="webchat-form" id="webchat-form">
+    <input type="text" id="webchat-name" placeholder="Nama kamu..." maxlength="30" autocomplete="off" aria-label="Nama kamu">
+    <div class="webchat-msgrow">
+      <input type="text" id="webchat-input" placeholder="Tulis pesan..." maxlength="500" autocomplete="off" aria-label="Tulis pesan">
+      <button type="submit" id="webchat-send" aria-label="Kirim pesan"><svg viewBox="0 0 24 24"><path d="M21.9 4.6 18.8 19.2c-.2 1-.8 1.3-1.7.8l-4.7-3.5-2.3 2.2c-.3.3-.5.5-1 .5l.3-4.8 8.7-7.9c.4-.3-.1-.5-.6-.2L6.7 13.1 2.1 11.7c-1-.3-1-1 .2-1.5L20.4 3.2c.8-.3 1.6.2 1.5 1.4Z"/></svg></button>
+    </div>
+  </form>
+</div>
+<button type="button" class="webchat-fab" id="webchat-fab" aria-label="Buka webchat Peka"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5Z"/></svg></button>
+<script>
+(function(){
+var API="https://ramadanadipa.com/api/webchat", NAME_KEY="rd-webchat-name";
+var panel=document.getElementById("webchat-panel"), fab=document.getElementById("webchat-fab"),
+    closeBtn=document.getElementById("webchat-close"), list=document.getElementById("webchat-list"),
+    form=document.getElementById("webchat-form"), nameInput=document.getElementById("webchat-name"),
+    input=document.getElementById("webchat-input"), sendBtn=document.getElementById("webchat-send");
+var seen={}, lastId=0, pollTimer=null;
+try{nameInput.value=localStorage.getItem(NAME_KEY)||"";}catch(e){}
+function fmtTime(iso){try{return new Date(iso).toLocaleTimeString("id-ID",{hour:"2-digit",minute:"2-digit",timeZone:"Asia/Jakarta"});}catch(e){return"";}}
+function myName(){return nameInput.value.trim();}
+function el(tag,cls){var d=document.createElement(tag);if(cls)d.className=cls;return d;}
+function addChat(m){
+  var mine=m.name===myName()&&myName()!=="";
+  var div=el("div","webchat-msg "+(mine?"mine":"other"));
+  var meta=el("div","webchat-meta");
+  var nm=document.createElement("b");nm.textContent=m.name;
+  var tm=document.createElement("span");tm.textContent=fmtTime(m.created_at);
+  meta.appendChild(nm);meta.appendChild(tm);
+  var tx=document.createElement("div");tx.textContent=m.body;
+  div.appendChild(meta);div.appendChild(tx);
+  list.appendChild(div);list.scrollTop=list.scrollHeight;
+}
+function load(){
+  fetch(API+"?after="+lastId).then(function(r){return r.json();}).then(function(d){
+    (d.messages||[]).forEach(function(m){
+      if(seen[m.id])return;seen[m.id]=true;
+      if(m.id>lastId)lastId=m.id;
+      addChat(m);
+    });
+  }).catch(function(){});
+}
+function reset(){
+  list.innerHTML="";
+  var note=el("div","webchat-note");note.textContent="Ruang chat publik. Tulis namamu, kirim pesan, semua pengunjung bisa melihatnya.";
+  list.appendChild(note);
+  seen={};lastId=0;
+}
+function closeChatbot(){
+  var p=document.getElementById("chatbot-panel"), f=document.getElementById("chatbot-fab"),
+      c=document.getElementById("chatbot-close");
+  if(p){p.classList.remove("open");p.setAttribute("aria-hidden","true");}
+  if(f){f.classList.remove("hidden");f.tabIndex=0;}
+  if(c)c.tabIndex=-1;
+}
+function open(){
+  closeChatbot();
+  panel.classList.add("open");panel.setAttribute("aria-hidden","false");fab.classList.add("hidden");
+  closeBtn.tabIndex=0;fab.tabIndex=-1;
+  reset();load();
+  if(!pollTimer)pollTimer=setInterval(load,5000);
+  (myName()?input:nameInput).focus();
+}
+function close(){
+  panel.classList.remove("open");panel.setAttribute("aria-hidden","true");fab.classList.remove("hidden");
+  closeBtn.tabIndex=-1;fab.tabIndex=0;
+  if(pollTimer){clearInterval(pollTimer);pollTimer=null;}
+}
+fab.onclick=open;closeBtn.onclick=close;
+document.addEventListener("keydown",function(e){if(e.key==="Escape")close();});
+var chatFab=document.getElementById("chatbot-fab");
+if(chatFab)chatFab.addEventListener("click",function(){close();});
+nameInput.addEventListener("change",function(){try{localStorage.setItem(NAME_KEY,nameInput.value.trim());}catch(e){}});
+form.addEventListener("submit",function(e){
+  e.preventDefault();
+  var name=myName(), text=input.value.trim();
+  if(!name){nameInput.focus();return;}
+  if(!text||sendBtn.disabled)return;
+  input.value="";sendBtn.disabled=true;
+  try{localStorage.setItem(NAME_KEY,name);}catch(e){}
+  fetch(API,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:name,body:text})})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(d&&d.message&&!seen[d.message.id]){seen[d.message.id]=true;if(d.message.id>lastId)lastId=d.message.id;addChat(d.message);}
+      else if(d&&d.error){addChat({name:"Sistem",body:d.error,created_at:new Date().toISOString()});}
+    })
+    .catch(function(){})
+    .then(function(){sendBtn.disabled=false;input.focus();});
+});
+})();
+</script>"""
+
+
 PREMIBOT_SLIDEIN = """<style>
 .premibot-panel{position:fixed;right:18px;bottom:80px;z-index:90;width:min(calc(100% - 36px),380px);background:#fff;color:#111;border:2.5px solid #111;border-radius:16px;box-shadow:6px 6px 0 #111;padding:26px;transform:translateX(calc(100% + 36px));visibility:hidden;transition:transform .32s ease,visibility 0s linear .32s}
 .premibot-panel.open{transform:translateX(0);visibility:visible;transition:transform .32s ease}
@@ -703,7 +836,7 @@ def shell(title, body_html, head_extra=""):
 <button id="toTop" type="button" aria-label="Kembali ke atas">&#8593;</button>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js" defer></script>
 <script src="/static/blog.js" defer></script>
-{CHATBOT_WIDGET}{PREMIBOT_SLIDEIN}{COMMUNITY_MODAL}</body></html>"""
+{CHATBOT_WIDGET}{PREMIBOT_SLIDEIN}{COMMUNITY_MODAL}{WEBCHAT_WIDGET}</body></html>"""
 
 @app.route("/")
 def index():
