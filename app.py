@@ -463,6 +463,161 @@ def seo_head(p=None):
         f'<meta property="og:image" content="{SITE}/static/logo.png">',
     ])
 
+CHATBOT_WIDGET = """<style>
+.chatbot-panel{position:fixed;left:20px;bottom:20px;z-index:90;width:min(calc(100% - 40px),380px);height:min(560px,calc(100vh - 40px));display:flex;flex-direction:column;background:#fff;color:#111;border:1px solid #111;border-radius:2px;box-shadow:8px 8px 0 rgba(17,17,17,.9);transform:translateX(calc(-100% - 40px));visibility:hidden;transition:transform .32s ease,visibility 0s linear .32s;font-family:"Inter Tight","Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}
+.chatbot-panel.open{transform:translateX(0);visibility:visible;transition:transform .32s ease}
+.chatbot-head{display:flex;align-items:center;gap:12px;padding:16px 16px 12px;border-bottom:1px solid #d6d6d2}
+.chatbot-tile{flex:none;width:40px;height:40px;display:grid;place-items:center;background:#ffd60a;border:1px solid #111;border-radius:2px;color:#111}
+.chatbot-tile svg{width:22px;height:22px}
+.chatbot-head-text{flex:1;min-width:0;display:flex;flex-direction:column}
+.chatbot-head-text strong{font-size:1rem;letter-spacing:-.02em}
+.chatbot-head-text span{font-size:.75rem;color:#5c5c5a}
+.chatbot-close{flex:none;width:36px;height:36px;display:grid;place-items:center;background:transparent;border:1px solid #d6d6d2;border-radius:2px;font-size:1.25rem;line-height:1;color:#111;cursor:pointer}
+.chatbot-close:hover{background:#f3f3f0}
+.chatbot-list{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding:16px}
+.chatbot-msg{max-width:85%;padding:10px 12px;border-radius:2px;font-size:.9375rem;line-height:1.5;white-space:pre-wrap;word-break:break-word}
+.chatbot-msg.assistant{align-self:flex-start;background:#f3f3f0;border:1px solid #d6d6d2}
+.chatbot-msg.user{align-self:flex-end;background:#111;color:#fff}
+.chatbot-msg.typing{display:flex;gap:5px;align-items:center;padding:14px 12px}
+.chatbot-msg.typing span{width:7px;height:7px;border-radius:50%;background:#5c5c5a;animation:chatbot-blink 1.2s infinite}
+.chatbot-msg.typing span:nth-child(2){animation-delay:.2s}
+.chatbot-msg.typing span:nth-child(3){animation-delay:.4s}
+@keyframes chatbot-blink{0%,80%,100%{opacity:.25}40%{opacity:1}}
+.chatbot-chips{display:flex;flex-wrap:wrap;gap:8px;padding:0 16px 12px}
+.chatbot-chips button{padding:7px 12px;background:transparent;border:1px solid #111;border-radius:999px;font:inherit;font-size:.8125rem;color:#111;cursor:pointer}
+.chatbot-chips button:hover:not(:disabled){background:#ffd60a}
+.chatbot-chips button:disabled{opacity:.5;cursor:wait}
+.chatbot-form{display:flex;gap:8px;padding:12px 16px 16px;border-top:1px solid #d6d6d2}
+.chatbot-form input{flex:1;min-width:0;padding:10px 12px;border:1px solid #111;border-radius:2px;font:inherit;font-size:.9375rem;background:#fff;color:#111}
+.chatbot-form input:disabled{opacity:.6}
+.chatbot-form button[type=submit]{flex:none;width:44px;height:44px;display:grid;place-items:center;background:#111;color:#fff;border:1px solid #111;border-radius:2px;cursor:pointer}
+.chatbot-form button[type=submit]:hover:not(:disabled){background:#ffd60a;color:#111}
+.chatbot-form button[type=submit]:disabled{opacity:.5;cursor:wait}
+.chatbot-form button[type=submit] svg{width:20px;height:20px;fill:currentColor}
+.chatbot-fab{position:fixed;left:20px;bottom:20px;z-index:80;width:54px;height:54px;display:grid;place-items:center;background:#111;color:#ffd60a;border:1px solid #111;border-radius:2px;box-shadow:4px 4px 0 rgba(17,17,17,.25);cursor:pointer;transition:opacity .2s ease,visibility 0s}
+.chatbot-fab:hover{background:#ffd60a;color:#111}
+.chatbot-fab.hidden{opacity:0;visibility:hidden;pointer-events:none}
+.chatbot-fab svg{width:26px;height:26px}
+@media(max-width:640px){.chatbot-panel{left:14px;bottom:14px;height:min(600px,calc(100vh - 28px))}.chatbot-fab{left:14px;bottom:14px}}
+</style>
+<div class="chatbot-panel" id="chatbot-panel" role="dialog" aria-label="Chat Peka" aria-hidden="true">
+  <div class="chatbot-head">
+    <span class="chatbot-tile" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5Z"/><circle cx="8.5" cy="11.5" r="0.6" fill="currentColor" stroke="none"/><circle cx="12" cy="11.5" r="0.6" fill="currentColor" stroke="none"/><circle cx="15.5" cy="11.5" r="0.6" fill="currentColor" stroke="none"/></svg></span>
+    <div class="chatbot-head-text"><strong>Chat Peka</strong><span>Cuma bahas seputar Peka</span></div>
+    <button type="button" class="chatbot-close" id="chatbot-close" aria-label="Tutup chat" tabindex="-1">&times;</button>
+  </div>
+  <div class="chatbot-list" id="chatbot-list"></div>
+  <div class="chatbot-chips" id="chatbot-chips"></div>
+  <form class="chatbot-form" id="chatbot-form">
+    <input type="text" id="chatbot-input" placeholder="Tanya soal Peka..." maxlength="1000" aria-label="Tanya soal Peka">
+    <button type="submit" id="chatbot-send" aria-label="Kirim pesan" disabled><svg viewBox="0 0 24 24"><path d="M21.9 4.6 18.8 19.2c-.2 1-.8 1.3-1.7.8l-4.7-3.5-2.3 2.2c-.3.3-.5.5-1 .5l.3-4.8 8.7-7.9c.4-.3-.1-.5-.6-.2L6.7 13.1 2.1 11.7c-1-.3-1-1 .2-1.5L20.4 3.2c.8-.3 1.6.2 1.5 1.4Z"/></svg></button>
+  </form>
+</div>
+<button type="button" class="chatbot-fab" id="chatbot-fab" aria-label="Buka chat Peka"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5Z"/><circle cx="8.5" cy="11.5" r="0.6" fill="currentColor" stroke="none"/><circle cx="12" cy="11.5" r="0.6" fill="currentColor" stroke="none"/><circle cx="15.5" cy="11.5" r="0.6" fill="currentColor" stroke="none"/></svg></button>
+<script>
+(function(){
+var API="https://peka.ai.id/api/chat", KEY="peka-chat-history";
+var GREETING="Halo! Aku chatbot Peka. Tanya apa aja seputar Peka, produk digital, atau cara order lewat bot Telegram.";
+var CHIPS=["Produk apa aja di Peka Store?","Cara beli lewat Telegram?","Peka itu apa sih?"];
+var panel=document.getElementById("chatbot-panel"), fab=document.getElementById("chatbot-fab"),
+    closeBtn=document.getElementById("chatbot-close"), list=document.getElementById("chatbot-list"),
+    chipsBox=document.getElementById("chatbot-chips"), form=document.getElementById("chatbot-form"),
+    input=document.getElementById("chatbot-input"), sendBtn=document.getElementById("chatbot-send");
+var messages=[], waiting=false;
+function load(){try{var p=JSON.parse(localStorage.getItem(KEY)||"[]");if(Array.isArray(p))messages=p.filter(function(m){return m&&(m.role==="user"||m.role==="assistant")&&typeof m.content==="string";});}catch(e){messages=[];}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(messages.slice(-30)));}catch(e){}}
+function el(tag,cls,text){var d=document.createElement(tag);if(cls)d.className=cls;if(text!==undefined)d.textContent=text;return d;}
+function render(){
+  list.innerHTML="";
+  if(messages.length===0)list.appendChild(el("div","chatbot-msg assistant",GREETING));
+  messages.forEach(function(m){list.appendChild(el("div","chatbot-msg "+m.role,m.content));});
+  if(waiting){var t=el("div","chatbot-msg assistant typing");t.appendChild(el("span"));t.appendChild(el("span"));t.appendChild(el("span"));list.appendChild(t);}
+  chipsBox.innerHTML="";
+  if(messages.length===0){CHIPS.forEach(function(c){var b=el("button",null,c);b.type="button";b.disabled=waiting;b.onclick=function(){send(c);};chipsBox.appendChild(b);});}
+  list.scrollTop=list.scrollHeight;
+}
+function open(){panel.classList.add("open");panel.setAttribute("aria-hidden","false");fab.classList.add("hidden");closeBtn.tabIndex=0;fab.tabIndex=-1;closeBtn.focus();input.focus();}
+function close(){panel.classList.remove("open");panel.setAttribute("aria-hidden","true");fab.classList.remove("hidden");closeBtn.tabIndex=-1;fab.tabIndex=0;}
+function send(text){
+  var content=(text!==undefined?text:input.value).trim();
+  if(!content||waiting)return;
+  messages.push({role:"user",content:content});input.value="";sendBtn.disabled=true;waiting=true;render();
+  fetch(API,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({messages:messages.slice(-16)})})
+    .then(function(r){return r.json().catch(function(){return{};}).then(function(d){return{ok:r.ok,d:d};});})
+    .then(function(x){if(!x.ok||!x.d.reply)throw new Error("failed");messages.push({role:"assistant",content:x.d.reply});})
+    .catch(function(){messages.push({role:"assistant",content:"Chatbot lagi sibuk, coba lagi sebentar lagi ya."});})
+    .then(function(){waiting=false;save();render();input.focus();});
+}
+fab.onclick=open;closeBtn.onclick=close;
+document.addEventListener("keydown",function(e){if(e.key==="Escape")close();});
+form.addEventListener("submit",function(e){e.preventDefault();send();});
+input.addEventListener("input",function(){sendBtn.disabled=!input.value.trim()||waiting;});
+load();render();
+})();
+</script>"""
+
+
+PREMIBOT_SLIDEIN = """<style>
+.premibot-panel{position:fixed;right:18px;bottom:80px;z-index:90;width:min(calc(100% - 36px),380px);background:#fff;color:#111;border:2.5px solid #111;border-radius:16px;box-shadow:6px 6px 0 #111;padding:26px;transform:translateX(calc(100% + 36px));visibility:hidden;transition:transform .32s ease,visibility 0s linear .32s}
+.premibot-panel.open{transform:translateX(0);visibility:visible;transition:transform .32s ease}
+.premibot-close{position:absolute;top:12px;right:12px;width:36px;height:36px;display:grid;place-items:center;background:#fff;border:2.5px solid #111;border-radius:12px;font-size:19px;font-weight:800;line-height:1;color:#111;cursor:pointer}
+.premibot-close:active{transform:translate(2px,2px)}
+.premibot-tile{width:52px;height:52px;margin-bottom:16px;background:#ffd60a;border:2.5px solid #111;border-radius:12px;display:flex;align-items:center;justify-content:center}
+.premibot-tile svg{width:26px;height:26px;fill:#111}
+.premibot-eyebrow{font-size:11.5px;font-weight:800;letter-spacing:.22em;opacity:.6;margin-bottom:8px}
+.premibot-panel h3{font-size:23px;font-weight:800;letter-spacing:-.02em;line-height:1.2;margin-bottom:10px}
+.premibot-body{font-size:15px;font-weight:500;line-height:1.55;opacity:.75;margin-bottom:20px}
+.premibot-cta{display:flex;align-items:center;justify-content:center;gap:10px;background:#111;color:#fff;border:2.5px solid #111;border-radius:14px;box-shadow:4px 4px 0 rgba(17,17,17,.35);padding:14px 16px;margin-bottom:12px;font-size:16px;font-weight:800;text-decoration:none}
+.premibot-cta:active{transform:translate(2px,2px);box-shadow:2px 2px 0 rgba(17,17,17,.35)}
+.premibot-cta svg{width:19px;height:19px;fill:#fff}
+.premibot-handle{text-align:center;font-size:12.5px;font-weight:800;letter-spacing:.06em;opacity:.6;margin-bottom:12px}
+.premibot-catalog{display:block;text-align:center;font-size:14px;font-weight:700;text-decoration:underline;text-underline-offset:3px}
+.premibot-fab{position:fixed;right:18px;bottom:80px;z-index:80;width:54px;height:54px;display:grid;place-items:center;background:#111;color:#ffd60a;border:2.5px solid #111;border-radius:16px;box-shadow:4px 4px 0 rgba(17,17,17,.35);cursor:pointer;transition:opacity .2s ease,visibility 0s}
+.premibot-fab.hidden{opacity:0;visibility:hidden;pointer-events:none}
+.premibot-fab svg{width:26px;height:26px;fill:#ffd60a}
+.premibot-fab:active{transform:translate(2px,2px)}
+</style>
+<div class="premibot-panel" id="premibot-panel" role="dialog" aria-label="Order akun premium langsung di Telegram" aria-hidden="true">
+  <button class="premibot-close" id="premibot-close" type="button" aria-label="Tutup">&times;</button>
+  <span class="premibot-tile" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M21.9 4.6 18.8 19.2c-.2 1-.8 1.3-1.7.8l-4.7-3.5-2.3 2.2c-.3.3-.5.5-1 .5l.3-4.8 8.7-7.9c.4-.3-.1-.5-.6-.2L6.7 13.1 2.1 11.7c-1-.3-1-1 .2-1.5L20.4 3.2c.8-.3 1.6.2 1.5 1.4Z"/></svg></span>
+  <p class="premibot-eyebrow">BELI LEWAT TELEGRAM</p>
+  <h3>Order akun premium langsung di Telegram</h3>
+  <p class="premibot-body">Gemini, Canva, CapCut, dan puluhan produk digital lainnya. Chat botnya, pilih produk, bayar QRIS, langsung dikirim.</p>
+  <a class="premibot-cta" href="https://t.me/aeternum_premibot" target="_blank" rel="noopener"><svg viewBox="0 0 24 24"><path d="M21.9 4.6 18.8 19.2c-.2 1-.8 1.3-1.7.8l-4.7-3.5-2.3 2.2c-.3.3-.5.5-1 .5l.3-4.8 8.7-7.9c.4-.3-.1-.5-.6-.2L6.7 13.1 2.1 11.7c-1-.3-1-1 .2-1.5L20.4 3.2c.8-.3 1.6.2 1.5 1.4Z"/></svg>Buka Bot Telegram</a>
+  <p class="premibot-handle">@aeternum_premibot</p>
+  <a class="premibot-catalog" href="https://store.peka.ai.id" target="_blank" rel="noopener">Lihat katalog dulu</a>
+</div>
+<button class="premibot-fab" id="premibot-fab" type="button" aria-label="Buka popup bot PremiApp"><svg viewBox="0 0 24 24"><path d="M21.9 4.6 18.8 19.2c-.2 1-.8 1.3-1.7.8l-4.7-3.5-2.3 2.2c-.3.3-.5.5-1 .5l.3-4.8 8.7-7.9c.4-.3-.1-.5-.6-.2L6.7 13.1 2.1 11.7c-1-.3-1-1 .2-1.5L20.4 3.2c.8-.3 1.6.2 1.5 1.4Z"/></svg></button>
+<script>
+(function(){
+  var KEY = 'premibot-popup-seen';
+  var panel = document.getElementById('premibot-panel');
+  var fab = document.getElementById('premibot-fab');
+  var closeBtn = document.getElementById('premibot-close');
+  function open(){
+    panel.classList.add('open');
+    panel.setAttribute('aria-hidden','false');
+    fab.classList.add('hidden');
+    try { sessionStorage.setItem(KEY,'1'); } catch(e){}
+    closeBtn.focus();
+  }
+  function close(){
+    panel.classList.remove('open');
+    panel.setAttribute('aria-hidden','true');
+    fab.classList.remove('hidden');
+  }
+  closeBtn.addEventListener('click', close);
+  fab.addEventListener('click', open);
+  document.addEventListener('keydown', function(e){ if(e.key === 'Escape') close(); });
+  try {
+    if (!sessionStorage.getItem(KEY)) setTimeout(open, 2500);
+  } catch(e) {
+    setTimeout(open, 2500);
+  }
+})();
+</script>"""
+
+
 def shell(title, body_html, head_extra=""):
     t = f"{html.escape(title)} · Peka AI Blog" if title != "Arsip" else "Peka AI Blog · info AI & bansos harian"
     return f"""<!doctype html><html lang="id"><head><meta charset="utf-8">
@@ -489,7 +644,7 @@ def shell(title, body_html, head_extra=""):
 <button id="toTop" type="button" aria-label="Kembali ke atas">&#8593;</button>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js" defer></script>
 <script src="/static/blog.js" defer></script>
-</body></html>"""
+{CHATBOT_WIDGET}{PREMIBOT_SLIDEIN}</body></html>"""
 
 @app.route("/")
 def index():
