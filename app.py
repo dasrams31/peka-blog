@@ -780,7 +780,7 @@ COMMUNITY_MODAL = """     Muncul di tengah layar sekali per sesi (5 detik setela
     <p class="community-body">Info AI terbaru, bansos, dan diskusi seputar AI. Info naik duluan di grup, sebelum naik ke feed.</p>
     <a class="community-btn wa" href="https://chat.whatsapp.com/GLRMuZBICZg2636lVPj6NL" target="_blank" rel="noopener"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm5.2 14.2c-.2.6-1.3 1.2-1.8 1.2-.5.1-1 .2-3.4-.7-2.9-1.2-4.7-4.1-4.9-4.3-.1-.2-1.1-1.5-1.1-2.9s.7-2 1-2.3c.2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.9 2.1c.1.2.1.4 0 .6l-.4.6-.4.5c-.1.1-.3.3-.1.6.1.3.7 1.2 1.6 1.9 1.1.9 2 1.2 2.3 1.3.3.1.5.1.6-.1l1-1.2c.2-.3.4-.2.7-.1l2 1c.3.1.5.2.6.4 0 .1 0 .7-.2 1.3Z"/></svg>Gabung Grup WhatsApp</a>
     <a class="community-btn tg" href="https://t.me/peka_aigroup" target="_blank" rel="noopener"><svg viewBox="0 0 24 24"><path d="M21.9 4.6 18.8 19.2c-.2 1-.8 1.3-1.7.8l-4.7-3.5-2.3 2.2c-.3.3-.5.5-1 .5l.3-4.8 8.7-7.9c.4-.3-.1-.5-.6-.2L6.7 13.1 2.1 11.7c-1-.3-1-1 .2-1.5L20.4 3.2c.8-.3 1.6.2 1.5 1.4Z"/></svg>Gabung Grup Telegram</a>
-    <p class="community-note">Gratis, tanpa daftar. Keluar kapan saja.</p>
+    <p class="community-note">Gratis, tanpa daftar.</p>
   </div>
 </div>
 <script>
