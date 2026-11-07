@@ -827,7 +827,7 @@ def shell(title, body_html, head_extra=""):
 <div id="progress"></div>
 <nav class="nav"><div class="frame"><div class="nav-inner">
 <a class="brand" href="/"><img class="logo" src="/static/logo.png" alt="Logo Peka AI">peka.ai.id <span class="muted mono">/ blog</span></a>
-<div class="nav-links"><a class="hide-m" href="https://www.instagram.com/peka.ai.id">Instagram</a><a class="hide-m" href="https://www.threads.com/@peka.ai.id">Threads</a><button id="themebtn" type="button">gelap</button><a class="btn-site" href="https://peka.ai.id">Website resmi</a></div>
+<div class="nav-links"><a class="hide-m" href="https://www.instagram.com/peka.ai.id">Instagram</a><a class="hide-m" href="https://www.threads.com/@peka.ai.id">Threads</a><a class="hide-m" href="https://www.tiktok.com/@peka.ai.id">TikTok</a><button id="themebtn" type="button">gelap</button><a class="btn-site" href="https://peka.ai.id">Website resmi</a></div>
 </div></div></nav>
 <div class="frame">{body_html}
 <footer class="footer"><span class="mono">peka.ai.id / blog</span><span class="mono"><a href="https://url.peka.ai.id" target="_blank" rel="noopener">semua link resmi: url.peka.ai.id</a></span><span class="mono muted">info ai &amp; bansos, dikurasi tiap hari</span></footer>
